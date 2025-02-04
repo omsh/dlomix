@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 
-def masked_spectral_distance_torch(y_true: torch.tensor, y_pred: torch.tensor) -> torch.tensor:
+def masked_spectral_distance_torch(y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
     """
     Calculates the masked spectral distance between true and predicted intensity vectors.
     The masked spectral distance is a metric for comparing the similarity between two intensity vectors.
@@ -16,14 +16,14 @@ def masked_spectral_distance_torch(y_true: torch.tensor, y_pred: torch.tensor) -
 
     Parameters
     ----------
-    y_true : tf.Tensor
+    y_true : torch.Tensor
         A tensor containing the true values, with shape `(batch_size, num_values)`.
-    y_pred : tf.Tensor
+    y_pred : torch.Tensor
         A tensor containing the predicted values, with the same shape as `y_true`.
 
     Returns
     -------
-    tf.Tensor
+    torch.Tensor
         A tensor containing the masked spectral distance between `y_true` and `y_pred`.
 
     """
