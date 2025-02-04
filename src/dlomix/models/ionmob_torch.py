@@ -61,6 +61,7 @@ class Ionmob(nn.Module):
         self.gru2 = nn.GRU(gru_1 * 2, gru_2, batch_first=True, bidirectional=True, dropout=rdo)
         self.dropout = nn.Dropout(do)
 
+        # The dense layer input size is the size of the second GRU layer * 2 (bidirectional) + 5 (charge)
         dense1_input_size = gru_2 * 2 + 5
         self.dense_ccs_1 = nn.Linear(dense1_input_size, 128)
         self.dense_ccs_2 = nn.Linear(128, 64)
