@@ -82,6 +82,6 @@ def masked_pearson_correlation_distance_torch(y_true: torch.Tensor, y_pred: torc
     my = pred_masked.mean()
     xm, ym = true_masked - mx, pred_masked - my
     r_num = (xm * ym).mean()
-    r_den = xm.std() * ym.std()  # TODO check if I need to set unbiased=False
+    r_den = xm.std(unbiased=False) * ym.std(unbiased=False)
 
     return 1 - (r_num / r_den)
