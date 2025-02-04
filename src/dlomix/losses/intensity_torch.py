@@ -1,0 +1,51 @@
+import numpy as np
+import torch
+import torch.nn.functional as F
+
+
+def masked_spectral_distance_torch(y_true: torch.tensor, y_pred: torch.tensor) -> torch.tensor:
+    """
+    Calculates the masked spectral distance between true and predicted intensity vectors.
+    The masked spectral distance is a metric for comparing the similarity between two intensity vectors.
+
+    Masked, normalized spectral angles between true and pred vectors
+
+    > arccos(1*1 + 0*0) = 0 -> SL = 0 -> high correlation
+
+    > arccos(0*1 + 1*0) = pi/2 -> SL = 1 -> low correlation
+
+    Parameters
+    ----------
+    y_true : tf.Tensor
+        A tensor containing the true values, with shape `(batch_size, num_values)`.
+    y_pred : tf.Tensor
+        A tensor containing the predicted values, with the same shape as `y_true`.
+
+    Returns
+    -------
+    tf.Tensor
+        A tensor containing the masked spectral distance between `y_true` and `y_pred`.
+
+    """
+
+    # To avoid numerical instability during training on GPUs,
+    # we add a fuzzing constant epsilon of 1×10−7 to all vectors
+    epsilon = 1e-7
+
+    # Masking: we multiply values by (true + 1) because then the peaks that cannot
+    # be there (and have value of -1 as explained above) won't be considered
+    pred_masked = ((y_true + 1) * y_pred) / (y_true + 1 + epsilon)
+    true_masked = ((y_true + 1) * y_true) / (y_true + 1 + epsilon)
+
+    # L2 norm
+    # along last axis / dimension of the tensor
+    pred_norm = F.normalize(true_masked, p=2, dim=-1)
+    true_norm = F.normalize(pred_masked, p=2, dim=-1)
+
+    # Spectral Angle (SA) calculation
+    # (from the definition below, it is clear that ions with higher intensities
+    #  will always have a higher contribution)
+    product = (pred_norm * true_norm).sum()
+    arccos = torch.arccos(product)
+
+    return 2 * arccos / np.pi
