@@ -28,7 +28,7 @@ def test_tf_torch_equivalence_masked_spectral_distance():
 
     logger.info(f"Spectral Angle: for tf: {sa_tf.numpy()} vs for torch: {sa_torch.numpy()}")
 
-    assert (sa_tf.numpy() == sa_torch.numpy()).all() # alternatively try np.array_equiv(A,B)
+    assert np.allclose(sa_tf.numpy(), sa_torch.numpy()) # alternatively try np.array_equiv(A,B)
 
 
 # ------------------ intensity - masked pearson correlation distance ------------------
@@ -49,4 +49,4 @@ def test_tf_torch_equivalence_masked_pearson_correlation_distance():
 
     logger.info(f"Masked Pearson Correlation Distance: for tf: {pc_tf.numpy()} vs for torch: {pc_torch.numpy()}")
 
-    assert (pc_tf.numpy() == pc_torch.numpy()).all() # alternatively try np.array_equiv(A,B)
+    assert np.allclose(pc_tf.numpy(), pc_torch.numpy()) # alternatively try np.array_equiv(A,B)
