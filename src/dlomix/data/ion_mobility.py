@@ -32,14 +32,15 @@ def ccs_to_one_over_reduced_mobility(ccs, mz, charge, mass_gas=28.013, temp=31.8
     reduced_mass = (mz * charge * mass_gas) / (mz * charge + mass_gas)
     return  ((np.sqrt(reduced_mass * (temp + t_diff))) * ccs) / (SUMMARY_CONSTANT * charge)
 
-def get_sqrt_slopes_and_intercepts(
+def get_sqrt_weights_and_biases(
         mz: NDArray,
         charge: NDArray,
         ccs: NDArray,
         fit_charge_state_one: bool = True,
+        max_charge: int = 4,
 ) -> Tuple[NDArray, NDArray]:
     """
-    Fit a sqrt function to the data and return the slopes and intercepts,
+    Fit a sqrt function to the data and return the weights and biases,
     used to parameterize the init layer for the CCS prediction model.
     Args:
         mz: Array of mass-over-charge values
@@ -47,9 +48,10 @@ def get_sqrt_slopes_and_intercepts(
         ccs: Array of collision cross-section values
         fit_charge_state_one: Whether to fit the charge state 1 or not (should be set to false if
         your data does not contain charge state 1)
+        max_charge: Maximum charge state to consider
 
     Returns:
-        Tuple of slopes and intercepts the initial projection layer can be parameterized with
+        Tuple of weights and biases the initial projection layer can be parameterized with
     """
     if fit_charge_state_one:
         slopes, intercepts = [], []
@@ -58,7 +60,7 @@ def get_sqrt_slopes_and_intercepts(
 
     c_begin = 1 if fit_charge_state_one else 2
 
-    for c in range(c_begin, 6):
+    for c in range(c_begin, max_charge + 1):
         def fit_func(x, a, b):
             return a * np.sqrt(x) + b
 

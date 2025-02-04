@@ -31,7 +31,8 @@ class SquareRootProjectionLayer(nn.Module):
 
 
 class Ionmob(nn.Module):
-    def __init__(self, initial_weights,
+    def __init__(self,
+                 initial_weights,
                  initial_bias,
                  num_tokens,
                  max_peptide_length=50,
