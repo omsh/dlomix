@@ -49,3 +49,39 @@ def masked_spectral_distance_torch(y_true: torch.Tensor, y_pred: torch.Tensor) -
     arccos = torch.arccos(product)
 
     return 2 * arccos / np.pi
+
+
+def masked_pearson_correlation_distance_torch(y_true, y_pred):
+    """
+    Calculates the masked Pearson correlation distance between true and predicted intensity vectors.
+    The masked Pearson correlation distance is a metric for comparing the similarity between two intensity vectors,
+    taking into account only the non-negative values in the true values tensor (which represent valid peaks).
+
+    Parameters
+    ----------
+    y_true : tf.Tensor
+        A tensor containing the true values, with shape `(batch_size, num_values)`.
+    y_pred : tf.Tensor
+        A tensor containing the predicted values, with the same shape as `y_true`.
+
+    Returns
+    -------
+    tf.Tensor
+        A tensor containing the masked Pearson correlation distance between `y_true` and `y_pred`.
+
+    """
+
+    epsilon = 1e-7
+
+    # Masking: we multiply values by (true + 1) because then the peaks that cannot
+    # be there (and have value of -1 as explained above) won't be considered
+    pred_masked = ((y_true + 1) * y_pred) / (y_true + 1 + epsilon)
+    true_masked = ((y_true + 1) * y_true) / (y_true + 1 + epsilon)
+
+    mx = true_masked.mean()
+    my = pred_masked.mean()
+    xm, ym = true_masked - mx, pred_masked - my
+    r_num = (xm * ym).mean()
+    r_den = xm.std() * ym.std()  # TODO check if I need to set unbiased=False
+
+    return 1 - (r_num / r_den)
