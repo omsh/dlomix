@@ -74,7 +74,7 @@ def create_dataset_from_df(df: pd.DataFrame, tokenizer, max_seq_len: int, num_ch
         df.sequence_tokenized_unimod.apply(lambda s: tokenize_and_pad(s, tokenizer=tokenizer, n=max_seq_len)).values
     ))
     M = torch.tensor(np.expand_dims(df.mz.astype(np.float32).values, 1))
-    # Adjust charge to be zero-indexed for one-hot encoding
+    # adjust charge to be zero-indexed for one-hot encoding
     C = F.one_hot(torch.tensor(df.charge.values.astype(np.int64) - 1), num_classes=num_charges).float()
     CCS = torch.tensor(np.expand_dims(df.ccs.values, 1).astype(np.float32))
     CCS_PRED = torch.tensor(np.expand_dims(df.ccs_std.values, 1).astype(np.float32))
@@ -121,13 +121,13 @@ def main():
                         help="Enable verbose mode (print additional information)")
     args = parser.parse_args()
 
-    # Verbose: print out configuration settings
+    # verbose: print out configuration settings
     if args.verbose:
         print("Configuration:")
         for arg, value in vars(args).items():
             print(f"  {arg}: {value}")
 
-    # Set device: use provided value or auto-detect.
+    # set device: use provided value or auto-detect
     if args.device:
         device = torch.device(args.device)
     else:
@@ -139,35 +139,35 @@ def main():
             device = torch.device("cpu")
     print(f"Using device: {device}")
 
-    # Load the data from the parquet file.
+    # load the data from the parquet file.
     data = pd.read_parquet(args.data_path)
 
-    # Split data into training, validation, and test sets.
-    # (train_split + val_split) must be <= 1.0; the remainder is used for testing.
+    # split data into training, validation, and test sets
+    # (train_split + val_split) must be <= 1.0; the remainder is used for testing
     train_val_frac = args.train_split + args.val_split
     if train_val_frac > 1.0:
         raise ValueError("train_split + val_split must be <= 1.0")
     train_val_df, test_df = train_test_split(data, test_size=(1.0 - train_val_frac), random_state=42)
-    # Compute the relative fraction for validation (from the training+validation portion)
+    # compute the relative fraction for validation (from the training+validation portion)
     relative_val_frac = args.val_split / train_val_frac if train_val_frac > 0 else 0.0
     train_df, val_df = train_test_split(train_val_df, test_size=relative_val_frac, random_state=42)
 
     print(f"Train samples: {len(train_df)}, Validation samples: {len(val_df)}, Test samples: {len(test_df)}")
 
-    # Load the tokenizer.
+    # load the tokenizer
     unimod_tokenizer = load_tokenizer()
 
-    # Create datasets.
+    # create datasets
     train_dataset = create_dataset_from_df(train_df, unimod_tokenizer, args.max_seq_len)
     val_dataset = create_dataset_from_df(val_df, unimod_tokenizer, args.max_seq_len)
     test_dataset = create_dataset_from_df(test_df, unimod_tokenizer, args.max_seq_len)
 
-    # Create DataLoaders.
+    # create DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Get the weights and biases for the initial sqrt fit using the training data.
+    # get the weights and biases for the initial sqrt fit using the training data
     weights, biases = get_sqrt_weights_and_biases(
         train_df.mz,
         train_df.charge,
@@ -175,7 +175,7 @@ def main():
         fit_charge_state_one=True,
     )
 
-    # Create the model and move it to the selected device.
+    # create the model and move it to the selected device
     model = Ionmob(
         initial_weights=weights,
         initial_bias=biases,
@@ -186,11 +186,11 @@ def main():
     )
     model.to(device)
 
-    # Loss function and optimizer.
+    # loss function and optimizer.
     criterion = MaskedIonmobLoss(use_mse=True)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    # Learning rate scheduler.
+    # learning rate scheduler.
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         factor=args.lr_factor,
@@ -198,7 +198,7 @@ def main():
         min_lr=args.min_lr
     )
 
-    # Initialize early stopping tracking.
+    # early stopping tracking.
     best_val_loss = float("inf")
     epochs_without_improvement = 0
     best_model_state = None
@@ -206,9 +206,8 @@ def main():
     for epoch in range(1, args.epochs + 1):
         model.train()
         running_loss = 0.0
-        local_step = 0  # Reset counter for the current epoch
+        local_step = 0
 
-        # --- Training Loop ---
         for batch in train_loader:
             seq, mz, charge, target_ccs, target_std_ccs = batch
             seq = seq.to(device, dtype=torch.long)
@@ -231,7 +230,6 @@ def main():
 
         avg_train_loss = running_loss / len(train_loader)
 
-        # --- Validation Loop ---
         model.eval()
         val_loss_total = 0.0
         with torch.no_grad():
@@ -249,13 +247,13 @@ def main():
         avg_val_loss = val_loss_total / len(val_loader)
         print(f"Epoch {epoch} Summary: Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}")
 
-        # Step the learning rate scheduler using the validation loss.
+        # learning rate scheduler using the validation loss
         scheduler.step(avg_val_loss)
         if args.verbose:
             current_lr = scheduler.optimizer.param_groups[0]["lr"]
             print(f"Epoch {epoch}: Current Learning Rate: {current_lr}")
 
-        # Early stopping: if the validation loss does not improve for a number of epochs, stop.
+        # early stopping if the validation loss does not improve for a number of epochs, stop.
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             epochs_without_improvement = 0
