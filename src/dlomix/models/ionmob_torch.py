@@ -34,8 +34,8 @@ class SquareRootProjectionLayer(nn.Module):
 class Ionmob(nn.Module):
     def __init__(self,
                  num_tokens,
-                 initial_weights: np.ndarray = np.array([1.0, 1.0, 1.0, 1.0, 1.0]),
-                 initial_bias: np.ndarray = np.array([0.0, 0.0, 0.0, 0.0, 0.0]),
+                 initial_weights: np.ndarray = np.array([12.3177, 15.0300, 17.1686, 21.1792]),
+                 initial_bias: np.ndarray = np.array([-81.5547,   1.8667,  99.4165, 180.1543]),
                  max_charge: int = 5,
                  max_peptide_length: int = 50,
                  emb_dim: int = 64,
