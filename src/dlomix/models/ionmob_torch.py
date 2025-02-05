@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -32,9 +33,9 @@ class SquareRootProjectionLayer(nn.Module):
 
 class Ionmob(nn.Module):
     def __init__(self,
-                 initial_weights,
-                 initial_bias,
                  num_tokens,
+                 initial_weights: np.ndarray = np.array([1.0, 1.0, 1.0, 1.0, 1.0]),
+                 initial_bias: np.ndarray = np.array([0.0, 0.0, 0.0, 0.0, 0.0]),
                  max_charge: int = 5,
                  max_peptide_length: int = 50,
                  emb_dim: int = 64,
