@@ -1,12 +1,7 @@
-from typing import Union
-
-import tensorflow as tf
-import torch  # ! to figure out how to avoid importing both
 from keras import backend as K
 
 from dlomix.eval import tf as tf_eval
-
-Tensor = Union[torch.Tensor, tf.Tensor]
+from dlomix.types import Tensor
 
 
 def adjusted_mean_absolute_error(y_true: Tensor, y_pred: Tensor) -> Tensor:
