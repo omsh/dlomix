@@ -54,7 +54,7 @@ class PeptideDataset:
     max_seq_len : int
         Maximum sequence length to pad the sequences to. If set to 0, the sequences will not be padded.
     dataset_type : str
-        Type of the tensor dataset to be generated afterwards. Possible values are "tf" and "pt" for TensorFlow and PyTorch respectively.
+        Type of the tensor dataset to be generated afterwards. Possible values are "tf" and "pt" for TensorFlow and PyTorch, respectively. Fallback is to TensorFlow dataset tensors.
     batch_size : int
         Batch size for the tensor dataset.
     model_features : List[str]

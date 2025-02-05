@@ -14,6 +14,7 @@ INTENSITY_PARQUET_EXAMPLE_URL = "https://raw.githubusercontent.com/wilhelm-lab/d
 INTENSITY_CSV_EXAMPLE_URL = "https://raw.githubusercontent.com/wilhelm-lab/dlomix/develop/example_dataset/intensity/intensity_data.csv"
 RT_HUB_DATASET_NAME = "Wilhelmlab/prospect-ptms-irt"
 
+
 RAW_GENERIC_NESTED_DATA = {
     "seq": ["[UNIMOD:737]-DASAQTTSHELTIPN-[]", "[UNIMOD:737]-DLHTGRLC[UNIMOD:4]-[]"],
     "nested_feature": [[[30, 64]], [[25, 35]]],
@@ -26,12 +27,21 @@ TEST_ASSETS_TO_DOWNLOAD = [
     INTENSITY_PARQUET_EXAMPLE_URL,
     INTENSITY_CSV_EXAMPLE_URL,
 ]
+
 DOWNLOAD_PATH_FOR_ASSETS = join("tests", "assets")
 
 
 def unzip_file(zip_file_path, dest_dir):
     with zipfile.ZipFile(zip_file_path, "r") as f:
         f.extractall(dest_dir)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def global_variables():
+    pytest.global_variables = {
+        "RAW_GENERIC_NESTED_DATA": RAW_GENERIC_NESTED_DATA,
+        "DOWNLOAD_PATH_FOR_ASSETS": DOWNLOAD_PATH_FOR_ASSETS,
+    }
 
 
 @pytest.fixture(scope="session", autouse=True)
