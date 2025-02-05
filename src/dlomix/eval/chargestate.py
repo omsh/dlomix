@@ -1,3 +1,4 @@
+import tensorflow as tf
 from keras import backend as K
 
 from dlomix.eval import tf as tf_eval
