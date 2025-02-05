@@ -123,3 +123,17 @@ def TimeDeltaMetric2():
 METRICS_DICT = {
     "delta95": TimeDeltaMetric(),
 }
+
+
+if __name__ == "__main__":
+    # test case: absolute error is 2.0 is  below 95th percentile
+    y_true = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0])
+    y_pred = tf.constant([1.5, 3.0, 4.5, 6.0, 7.5])
+    # abs_error =        [0.5, 1.0, 1.5, 2.0, 2.5]
+
+    metric = TimeDeltaMetric(double_delta=True)
+    metric.update_state(y_true, y_pred)
+    assert metric.delta == 4.0
+    print(metric.result())  # 4 / 1
+    print(delta95_metric(y_true, y_pred))  # 4 / 4
+    print(TimeDeltaMetric2()(y_true, y_pred))
