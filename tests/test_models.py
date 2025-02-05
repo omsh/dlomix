@@ -3,9 +3,7 @@ import logging
 import pytest
 
 from dlomix.models import (
-    ChargeStateDistributionPredictor,
-    DominantChargeStatePredictor,
-    ObservedChargeStatePredictor,
+    ChargeStatePredictor,
     PrositIntensityPredictor,
     PrositRetentionTimePredictor,
 )
@@ -125,20 +123,24 @@ def test_prosit_intensity_model_encoding_metadata_missing():
             }
         )
 
-
-def test_dominant_chargestate_model():
-    model = DominantChargeStatePredictor()
+def basic_model_existence_test(model):
     logger.info(model)
     assert model is not None
+    
+    model.build((None, 30))
+    assert len(model.trainable_variables) > 0
+
+
+def test_dominant_chargestate_model():
+    model = ChargeStatePredictor(model_flavour="dominant")
+    basic_model_existence_test(model)
 
 
 def test_observed_chargestate_model():
-    model = ObservedChargeStatePredictor()
-    logger.info(model)
-    assert model is not None
+    model = ChargeStatePredictor(model_flavour="observed")
+    basic_model_existence_test(model)
 
 
 def test_chargestate_distribution_model():
-    model = ChargeStateDistributionPredictor()
-    logger.info(model)
-    assert model is not None
+    model = ChargeStatePredictor(model_flavour="relative")
+    basic_model_existence_test(model)
