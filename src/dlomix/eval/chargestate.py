@@ -1,10 +1,15 @@
+from typing import Union
+
 import tensorflow as tf
+import torch  # ! to figure out how to avoid importing both
 from keras import backend as K
 
 from dlomix.eval import tf as tf_eval
 
+Tensor = Union[torch.Tensor, tf.Tensor]
 
-def adjusted_mean_absolute_error(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+
+def adjusted_mean_absolute_error(y_true: Tensor, y_pred: Tensor) -> Tensor:
     """
     Used as an evaluation metric for charge state prediction.
 
@@ -19,7 +24,7 @@ def adjusted_mean_absolute_error(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Ten
         raise NotImplementedError("todo")
 
 
-def adjusted_mean_squared_error(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+def adjusted_mean_squared_error(y_true: Tensor, y_pred: Tensor) -> Tensor:
     """
     For two vectors, discard those components that
     are 0 in both vectors and compute the mean
