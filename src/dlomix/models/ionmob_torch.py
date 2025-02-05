@@ -35,12 +35,13 @@ class Ionmob(nn.Module):
                  initial_weights,
                  initial_bias,
                  num_tokens,
-                 max_peptide_length=50,
-                 emb_dim=64,
-                 gru_1=64,
-                 gru_2=32,
-                 rdo=0.0,
-                 do=0.2):
+                 max_charge: int = 5,
+                 max_peptide_length: int = 50,
+                 emb_dim: int = 64,
+                 gru_1: int = 64,
+                 gru_2: int = 32,
+                 rdo: float = 0.0,
+                 do: float = 0.2):
         """
         Initialize the Ionmob model for CCS mean and std prediction.
         Args:
@@ -62,8 +63,9 @@ class Ionmob(nn.Module):
         self.gru2 = nn.GRU(gru_1 * 2, gru_2, batch_first=True, bidirectional=True, dropout=rdo)
         self.dropout = nn.Dropout(do)
 
-        # The dense layer input size is the size of the second GRU layer * 2 (bidirectional) + 5 (charge)
-        dense1_input_size = gru_2 * 2 + 5
+        # The dense layer input size is the size of the
+        # second GRU layer * 2 (bidirectional) + max_charge - 1 (charge index start 0)
+        dense1_input_size = gru_2 * 2 + max_charge - 1
         self.dense_ccs_1 = nn.Linear(dense1_input_size, 128)
         self.dense_ccs_2 = nn.Linear(128, 64)
 
