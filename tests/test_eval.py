@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import torch
 
 from dlomix.eval.chargestate import (
     adjusted_mean_absolute_error,
@@ -22,6 +23,20 @@ def test_adjusted_mean_absolute_error():
 def test_adjusted_mean_squared_error():
     y_true = tf.constant(Y_TRUE, dtype="float32")
     y_pred = tf.constant(Y_PRED, dtype="float32")
+    mse = adjusted_mean_squared_error(y_true, y_pred)
+    assert np.isclose(mse, 4.0)
+
+
+def test_adjusted_mean_absolute_error_torch():
+    y_true = torch.tensor(Y_TRUE, dtype=torch.float32)
+    y_pred = torch.tensor(Y_PRED, dtype=torch.float32)
+    mae = adjusted_mean_absolute_error(y_true, y_pred)
+    assert np.isclose(mae, 2.0)
+
+
+def test_adjusted_mean_squared_error_torch():
+    y_true = torch.tensor(Y_TRUE, dtype=torch.float32)
+    y_pred = torch.tensor(Y_PRED, dtype=torch.float32)
     mse = adjusted_mean_squared_error(y_true, y_pred)
     assert np.isclose(mse, 4.0)
 

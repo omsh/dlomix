@@ -1,5 +1,7 @@
 import torch
 
+EPSILON = torch.finfo(torch.float32).eps
+
 
 def adjusted_mean_absolute_error(
     y_pred: torch.tensor, y_true: torch.tensor
@@ -23,8 +25,7 @@ def adjusted_mean_absolute_error(
     count_non_zero = mask.sum()
 
     # Avoid division by zero by adding a small epsilon to the denominator
-    epsilon = 1e-7
-    mean_absolute_error = (absolute_errors).sum() / (count_non_zero + epsilon)
+    mean_absolute_error = (absolute_errors).sum() / (count_non_zero + EPSILON)
 
     return mean_absolute_error
 
@@ -46,12 +47,11 @@ def adjusted_mean_squared_error(
     mask = (y_true != 0) & (y_pred != 0)
 
     # Compute the mean absolute error
-    squared_errors = torch.sqrt((y_true - y_pred) * mask)
+    squared_errors = torch.square((y_true - y_pred) * mask)
 
     count_non_zero = mask.sum()
 
     # Avoid division by zero by adding a small epsilon to the denominator
-    epsilon = 1e-7
-    mean_squared_error = (squared_errors).sum() / (count_non_zero + epsilon)
+    mean_squared_error = (squared_errors).sum() / (count_non_zero + EPSILON)
 
     return mean_squared_error
