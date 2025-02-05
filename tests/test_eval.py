@@ -41,7 +41,7 @@ def test_adjusted_mean_squared_error_torch():
     assert np.isclose(mse, 4.0)
 
 
-def test_rt_eval():
+def test_rt_eval_rf():
     y_true = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0])
     y_pred = tf.constant([1.5, 3.0, 4.5, 6.0, 7.5])
     # abs_error =        [0.5, 1.0, 1.5, 2.0, 2.5]
@@ -50,4 +50,12 @@ def test_rt_eval():
     metric.update_state(y_true, y_pred)
     assert metric.delta == 4.0
     assert metric.result() == 4.0 / 1
+    assert delta95_metric(y_true, y_pred) == 4.0 / 4
+
+
+def test_rt_eval_torch():
+    y_true = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0])
+    y_pred = torch.tensor([1.5, 3.0, 4.5, 6.0, 7.5])
+    # abs_error =         [0.5, 1.0, 1.5, 2.0, 2.5]
+
     assert delta95_metric(y_true, y_pred) == 4.0 / 4
