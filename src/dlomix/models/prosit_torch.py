@@ -1,12 +1,11 @@
 import warnings
-
-import torch as nn
-
+import torch
+import torch.nn as nn
 from ..constants import ALPHABET_UNMOD
-from ..data.processing.feature_extractors import FEATURE_EXTRACTORS_PARAMETERS
+# from ..data.processing.feature_extractors import FEATURE_EXTRACTORS_PARAMETERS
 from ..layers.attention import AttentionLayer, DecoderAttentionLayer
 
-class PrositIntensityPredictor_torch(nn.Module):
+class PrositIntensityPredictorTorch(nn.Module):
     def init(
             self,
             embedding_output_dim=16,
@@ -18,11 +17,13 @@ class PrositIntensityPredictor_torch(nn.Module):
             recurrent_layers_sizes=(256, 512),
             regressor_layer_size=512,
             use_prosit_ptm_features=False,
-            input_keys=None,
+            input_keys={
+        "SEQUENCE_KEY": "modified_sequence",
+    },
             meta_data_keys=None,
             with_termini=True,
         ): 
-        super(PrositIntensityPredictor_torch, self).__init__()
+        super(PrositIntensityPredictorTorch, self).__init__()
 
         self.dropout_rate = dropout_rate
         self.latent_dropout_rate = latent_dropout_rate
@@ -65,17 +66,14 @@ class PrositIntensityPredictor_torch(nn.Module):
         if self.meta_data_keys:
             self.meta_data_fusion_layer = nn.Sequential(
                 [
-                    nn.multiply(name="add_meta"),
+                    torch.mul(name="add_meta"),
                     nn.Tensor.repeat(self.max_ion, name="repeat"),
                 ]
             )
         
-        print(self.meta_data_fusion_layer.shape)
-        breakpoint
-
         self.regressor = nn.Sequential(
             [
-                tf.keras.layers.TimeDistributed(
+                TimeDistributed(
                     nn.Linear(self.len_fion), name="time_dense"   # no specified activation, hence no activation is applied in tf 
                 ),
                 nn.LeakyReLU(name="activation"),
@@ -90,17 +88,20 @@ class PrositIntensityPredictor_torch(nn.Module):
             [
                 # Need to inplement bidirectionallity of the tf.keras.Bidirectional 
                 # bidirectional=True
+
+                #
+                # print shapes before and after 
                 
                 tf.keras.Bidirectional(
                     nn.GRU(
                         units=self.recurrent_layers_sizes[0], return_sequences=True
                     )
                 ),
-                nn.dropout(rate=self.dropout_rate),
+                nn.Dropout(rate=self.dropout_rate),
                 nn.GRU(
                     units=self.recurrent_layers_sizes[1], return_sequences=True
                 ),
-                nn.dropout(rate=self.dropout_rate),
+                nn.Dropout(rate=self.dropout_rate),
             
             ]
         )
@@ -110,11 +111,11 @@ class PrositIntensityPredictor_torch(nn.Module):
         if self.meta_data_keys:
             self.meta_encoder = nn.Sequential(
                 [
-                    nn.cat(name="meta_in"),
+                    torch.cat(name="meta_in"),
                     nn.Linear(
                         self.recurrent_layers_sizes[1], name="meta_dense"
                     ),
-                    nn.dropout(self.dropout_rate, name="meta_dense_do"),
+                    nn.Dropout(self.dropout_rate, name="meta_dense_do"),
                 ]
             )
 
@@ -123,19 +124,18 @@ class PrositIntensityPredictor_torch(nn.Module):
         if self.use_prosit_ptm_features:
             self.ptm_input_encoder = nn.Sequential(
                 [
-                    nn.cat(name="ptm_features_concat"),
-                    # same here for activation = default
+                    torch.cat(name="ptm_features_concat"),
                     nn.Linear(self.regressor_layer_size // 2),
-                    nn.dropout(rate=self.dropout_rate),
+                    nn.Dropout(rate=self.dropout_rate),
                     nn.Linear(self.embedding_output_dim * 4),
-                    nn.dropout(rate=self.dropout_rate),
+                    nn.Dropout(rate=self.dropout_rate),
                     nn.Linear(self.embedding_output_dim),
-                    nn.dropout(rate=self.dropout_rate),
+                    nn.Dropout(rate=self.dropout_rate),
                 ],
                 name="ptm_input_encoder",
             )
 
-            self.ptm_aa_fusion = nn.cat(name="aa_ptm_in")
+            self.ptm_aa_fusion = torch.cat(name="aa_ptm_in")
 
     def _build_decoder(self):
         self.decoder = nn.Sequential(
@@ -145,7 +145,7 @@ class PrositIntensityPredictor_torch(nn.Module):
                     return_sequences=True,
                     name="decoder",
                 ),
-                nn.dropout(rate=self.dropout_rate),
+                nn.Dropout(rate=self.dropout_rate),
                 DecoderAttentionLayer(self.max_ion),
             ]
         )
@@ -175,7 +175,7 @@ class PrositIntensityPredictor_torch(nn.Module):
 
             # read PTM features from the input dict
             ptm_ac_features = self._collect_values_from_inputs_if_exists(
-                inputs, PrositIntensityPredictor_torch.PTM_INPUT_KEYS
+                inputs, PrositIntensityPredictorTorch.PTM_INPUT_KEYS
             )
 
             if self.ptm_input_encoder and len(ptm_ac_features) > 0:
@@ -186,6 +186,9 @@ class PrositIntensityPredictor_torch(nn.Module):
                 )
 
         x = self.embedding(peptides_in)
+
+        print(x.shape)
+        breakpoint()
 
         # fusion of PTMs (before going into the GRU sequence encoder)
         if self.ptm_aa_fusion and encoded_ptm is not None:
@@ -224,3 +227,28 @@ class PrositIntensityPredictor_torch(nn.Module):
                     single_input = nn.unsqueeze(single_input, axis=-1)
                 collected_values.append(single_input)
         return collected_values
+    
+
+class TimeDistributed(nn.Module):
+    def __init__(self, module, batch_first = False):
+        super(TimeDistributed, self).__init__()
+        self.module = module
+        self.batch_first = batch_first
+
+    def forward(self, x):
+
+        if len(x.size()) <= 2:
+            return self.module(x)
+
+        # Squash samples and timesteps into a single axis
+        x_reshape = x.contiguous().view(-1, x.size(-1))  # (samples * timesteps, input_size)
+
+        y = self.module(x_reshape)
+
+        # We have to reshape Y
+        if self.batch_first:
+            y = y.contiguous().view(x.size(0), -1, y.size(-1))  # (samples, timesteps, output_size)
+        else:
+            y = y.view(-1, x.size(1), y.size(-1))  # (timesteps, samples, output_size)
+
+        return y
