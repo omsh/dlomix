@@ -1,8 +1,7 @@
 import os
 import sys
 
-import tensorflow as tf
-
+import torch.optim as optim
 from dlomix.data import FragmentIonIntensityDataset
 from dlomix.losses import masked_spectral_distance
 from dlomix.models import PrositIntensityPredictorTorch
@@ -10,10 +9,13 @@ from dlomix.models import PrositIntensityPredictorTorch
 # consider the use-case for starting from a saved model
 
 model = PrositIntensityPredictorTorch(
-
+    # seq_length=30,
+    # input_keys={
+    #     "SEQUENCE_KEY": "modified_sequence",
+    # },
 )
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+optimizer = optim.Adam(params=model.parameters(), lr=0.0001)
 
 TRAIN_DATAPATH = "example_dataset/intensity/third_pool_processed_sample.parquet"
 
@@ -31,32 +33,33 @@ d = FragmentIonIntensityDataset(
 
 # model.compile(optimizer=optimizer, loss=masked_spectral_distance, metrics=["mse"])
 
-weights_file = "run_scripts/output/prosit_intensity_test"
-checkpoint = tf.keras.callbacks.ModelCheckpoint(
-    weights_file, save_best_only=True, save_weights_only=True
-)
-decay = tf.keras.callbacks.ReduceLROnPlateau(
-    monitor="val_loss", factor=0.1, patience=10, verbose=1, min_lr=0
-)
-early_stop = tf.keras.callbacks.EarlyStopping(patience=20)
-callbacks = [checkpoint, early_stop, decay]
+# weights_file = "run_scripts/output/prosit_intensity_test"
+# checkpoint = tf.keras.callbacks.ModelCheckpoint(
+#     weights_file, save_best_only=True, save_weights_only=True
+# )
+# decay = tf.keras.callbacks.ReduceLROnPlateau(
+#     monitor="val_loss", factor=0.1, patience=10, verbose=1, min_lr=0
+# )
+# early_stop = tf.keras.callbacks.EarlyStopping(patience=20)
+# callbacks = [checkpoint, early_stop, decay]
 
 # make training loop 
 
 model.train()
 loss = masked_spectral_distance
 
-
-for epoch in range(0, 10):
+for epoch in range(0, 19):
+    epoch_loss = 0
     for batch in d.tensor_train_data:
         optimizer.zero_grad()
 
-        output = PrositIntensityPredictorTorch(model)
-        loss = loss(output, )
+        output = model(batch)
+        loss = loss(output, batch["intensities_raw"])
 
-
-
-        
+        loss.backward() 
+        epoch_loss += loss            
+        optimizer.step()
+    
 
 # # to add test data, a pool for example
 # td = IntensityDataset(

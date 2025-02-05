@@ -1,4 +1,5 @@
 import warnings
+import collections as col
 import torch
 import torch.nn as nn
 from ..constants import ALPHABET_UNMOD
@@ -6,7 +7,7 @@ from ..constants import ALPHABET_UNMOD
 from ..layers.attention import AttentionLayer, DecoderAttentionLayer
 
 class PrositIntensityPredictorTorch(nn.Module):
-    def init(
+    def __init__(
             self,
             embedding_output_dim=16,
             seq_length=30,
@@ -17,9 +18,7 @@ class PrositIntensityPredictorTorch(nn.Module):
             recurrent_layers_sizes=(256, 512),
             regressor_layer_size=512,
             use_prosit_ptm_features=False,
-            input_keys={
-        "SEQUENCE_KEY": "modified_sequence",
-    },
+            input_keys=None,
             meta_data_keys=None,
             with_termini=True,
         ): 
@@ -52,9 +51,8 @@ class PrositIntensityPredictorTorch(nn.Module):
         self.embeddings_count = len(self.alphabet)
 
         self.embedding = nn.Embedding(
-            input_dim=self.embeddings_count,
-            output_dim=self.embedding_output_dim,
-            input_length=seq_length,
+            num_embeddings=self.embeddings_count,
+            embedding_dim=self.embedding_output_dim,
         )
 
         self._build_encoders()
@@ -65,48 +63,42 @@ class PrositIntensityPredictorTorch(nn.Module):
         self.meta_data_fusion_layer = None
         if self.meta_data_keys:
             self.meta_data_fusion_layer = nn.Sequential(
-                [
+                col.OrderedDict([
                     torch.mul(name="add_meta"),
-                    nn.Tensor.repeat(self.max_ion, name="repeat"),
-                ]
+                    torch.Tensor.repeat(self.max_ion, name="repeat"),
+                ])
             )
         
         self.regressor = nn.Sequential(
-            [
-                TimeDistributed(
-                    nn.Linear(self.len_fion), name="time_dense"   # no specified activation, hence no activation is applied in tf 
-                ),
-                nn.LeakyReLU(name="activation"),
-                nn.Flatten(name="out"),
-            ]
+            col.OrderedDict([
+                ("time_dense", TimeDistributed(nn.Linear(in_features=self.len_fion, out_features=len_fion)   # no specified activation, hence no activation is applied in tf 
+                )),
+                ("activation", nn.LeakyReLU()),
+                ("out", nn.Flatten()),
+            ])
         )
-
+      
 
     def _build_encoders(self):
         # sequence encoder -> always present
         self.sequence_encoder = nn.Sequential(
-            [
-                # Need to inplement bidirectionallity of the tf.keras.Bidirectional 
-                # bidirectional=True
-
-                #
-                # print shapes before and after 
-                
-                tf.keras.Bidirectional(
-                    nn.GRU(
-                        units=self.recurrent_layers_sizes[0], return_sequences=True
-                    )
-                ),
-                nn.Dropout(rate=self.dropout_rate),
                 nn.GRU(
-                    units=self.recurrent_layers_sizes[1], return_sequences=True
+                    input_size=self.embedding_output_dim, 
+                    hidden_size=self.recurrent_layers_sizes[0],
+                    batch_first=True, 
+                    bidirectional=True
                 ),
-                nn.Dropout(rate=self.dropout_rate),
-            
-            ]
+                nn.Dropout(p=self.dropout_rate),
+                nn.GRU(
+                    input_size=self.recurrent_layers_sizes[0]*2, 
+                    hidden_size=self.recurrent_layers_sizes[1],
+                    batch_first=True, 
+                    bidirectional=False
+                ),
+                nn.Dropout(p=self.dropout_rate),
         )
 
-        # meta data encoder -> optional, only if meta data keys are provided
+        # # meta data encoder -> optional, only if meta data keys are provided -- not yet adapted
         self.meta_encoder = None
         if self.meta_data_keys:
             self.meta_encoder = nn.Sequential(
@@ -115,22 +107,22 @@ class PrositIntensityPredictorTorch(nn.Module):
                     nn.Linear(
                         self.recurrent_layers_sizes[1], name="meta_dense"
                     ),
-                    nn.Dropout(self.dropout_rate, name="meta_dense_do"),
+                    nn.Dropout(p=self.dropout_rate, name="meta_dense_do"),
                 ]
             )
 
-        # ptm encoder -> optional, only if ptm flag is provided
+        # # ptm encoder -> optional, only if ptm flag is provided -- not yet properly adapted
         self.ptm_input_encoder, self.ptm_aa_fusion = None, None
         if self.use_prosit_ptm_features:
             self.ptm_input_encoder = nn.Sequential(
                 [
                     torch.cat(name="ptm_features_concat"),
                     nn.Linear(self.regressor_layer_size // 2),
-                    nn.Dropout(rate=self.dropout_rate),
+                    nn.Dropout(p=self.dropout_rate),
                     nn.Linear(self.embedding_output_dim * 4),
-                    nn.Dropout(rate=self.dropout_rate),
+                    nn.Dropout(p=self.dropout_rate),
                     nn.Linear(self.embedding_output_dim),
-                    nn.Dropout(rate=self.dropout_rate),
+                    nn.Dropout(p=self.dropout_rate),
                 ],
                 name="ptm_input_encoder",
             )
@@ -139,15 +131,14 @@ class PrositIntensityPredictorTorch(nn.Module):
 
     def _build_decoder(self):
         self.decoder = nn.Sequential(
-            [
-                nn.GRU(
-                    units=self.regressor_layer_size,
-                    return_sequences=True,
-                    name="decoder",
-                ),
-                nn.Dropout(rate=self.dropout_rate),
-                DecoderAttentionLayer(self.max_ion),
-            ]
+            col.OrderedDict([  
+                ("decoder", nn.GRU(
+                    input_size=self.recurrent_layers_sizes[0], 
+                    hidden_size=self.recurrent_layers_sizes[1],
+                )),
+                ("droppout", nn.Dropout(p=self.dropout_rate)),
+                # DecoderAttentionLayerTorch(self.max_ion),
+            ])
         )
 
     def call(self, inputs, **kwargs):
@@ -182,7 +173,7 @@ class PrositIntensityPredictorTorch(nn.Module):
                 encoded_ptm = self.ptm_input_encoder(ptm_ac_features)
             elif self.use_prosit_ptm_features:
                 warnings.warn(
-                    f"PTM features enabled and following PTM features are expected in the model for Prosit Intesity: {PrositIntensityPredictor.PTM_INPUT_KEYS}. The actual input passed to the model contains the following keys: {list(inputs.keys())}. Falling back to no PTM features."
+                    f"PTM features enabled and following PTM features are expected in the model for Prosit Intesity: {PrositIntensityPredictorTorch.PTM_INPUT_KEYS}. The actual input passed to the model contains the following keys: {list(inputs.keys())}. Falling back to no PTM features."
                 )
 
         x = self.embedding(peptides_in)
@@ -224,7 +215,7 @@ class PrositIntensityPredictorTorch(nn.Module):
             single_input = inputs.get(key_in_inputs, None)
             if single_input is not None:
                 if single_input.ndim == 1:
-                    single_input = nn.unsqueeze(single_input, axis=-1)
+                    single_input = torch.unsqueeze(single_input, axis=-1)
                 collected_values.append(single_input)
         return collected_values
     
