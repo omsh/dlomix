@@ -253,7 +253,7 @@ def main():
             current_lr = scheduler.optimizer.param_groups[0]["lr"]
             print(f"Epoch {epoch}: Current Learning Rate: {current_lr}")
 
-        # early stopping if the validation loss does not improve for a number of epochs, stop.
+        # early stopping if the validation loss does not improve for a number of epochs, stop
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             epochs_without_improvement = 0
@@ -265,17 +265,17 @@ def main():
                 print("Early stopping triggered.")
                 break
 
-    # Restore the best model.
+    # restore the best model
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
         print("Loaded best model state.")
 
-    # Save the best model to the provided path.
+    # save the best model to the provided path.
     if args.save_path:
         torch.save(model.state_dict(), args.save_path)
         print(f"Best model saved to {args.save_path}")
 
-    # --- Testing Loop ---
+
     model.eval()
     test_loss_total = 0.0
     with torch.no_grad():
