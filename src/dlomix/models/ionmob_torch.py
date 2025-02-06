@@ -60,7 +60,7 @@ class Ionmob(nn.Module):
         self.max_charge = max_charge
         self.max_peptide_length = max_peptide_length
         self.initial = SquareRootProjectionLayer(initial_weights, initial_bias, trainable=True)
-        self.emb = nn.Embedding(num_tokens + 1, emb_dim)
+        self.emb = nn.Embedding(num_tokens, emb_dim)
         self.gru1 = nn.GRU(emb_dim, gru_1, batch_first=True, bidirectional=True, dropout=rdo)
         self.gru2 = nn.GRU(gru_1 * 2, gru_2, batch_first=True, bidirectional=True, dropout=rdo)
         self.dropout = nn.Dropout(do)
