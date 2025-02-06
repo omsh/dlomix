@@ -1,19 +1,12 @@
 #!/usr/bin/env python
 import argparse
 import pandas as pd
-import numpy as np
-import importlib.resources
-import json
-from typing import List, Dict
 
 from dlomix.losses import MaskedIonmobLoss
 from dlomix.models import Ionmob
-from dlomix.data.ion_mobility import get_sqrt_weights_and_biases
 
 import torch
 import torch.optim as optim
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
 
 # scikit-learn to split the dataset.
 from sklearn.model_selection import train_test_split
@@ -22,8 +15,6 @@ from dlomix.data import  IonMobilityDataset
 
 def main():
     parser = argparse.ArgumentParser(description="Train Ionmob model with PyTorch")
-    parser.add_argument("--data_path", type=str, required=True,
-                        help="Path to input parquet data file")
     parser.add_argument("--batch_size", type=int, default=1024,
                         help="Batch size")
     parser.add_argument("--epochs", type=int, default=50,
@@ -78,21 +69,6 @@ def main():
             device = torch.device("cpu")
     print(f"Using device: {device}")
 
-    # load the data from the parquet file.
-    data = pd.read_parquet(args.data_path)
-
-    # split data into training, validation, and test sets
-    # (train_split + val_split) must be <= 1.0; the remainder is used for testing
-    train_val_frac = args.train_split + args.val_split
-    if train_val_frac > 1.0:
-        raise ValueError("train_split + val_split must be <= 1.0")
-    train_val_df, test_df = train_test_split(data, test_size=(1.0 - train_val_frac), random_state=42)
-    # compute the relative fraction for validation (from the training+validation portion)
-    relative_val_frac = args.val_split / train_val_frac if train_val_frac > 0 else 0.0
-    train_df, val_df = train_test_split(train_val_df, test_size=relative_val_frac, random_state=42)
-
-    print(f"Train samples: {len(train_df)}, Validation samples: {len(val_df)}, Test samples: {len(test_df)}")
-
     ds_huggingface = IonMobilityDataset(
         data_source="theGreatHerrLebert/ionmob",
         data_format="hub",
@@ -139,8 +115,8 @@ def main():
             mz = mz.to(device, dtype=torch.float32)
             charge = charge.to(device, dtype=torch.long)
 
-            target_ccs = target_ccs.to(device, dtype=torch.float32)
-            target_ccs_std = target_ccs_std.to(device, dtype=torch.float32)
+            target_ccs = torch.unsqueeze(target_ccs.to(device, dtype=torch.float32), -1)
+            target_ccs_std = torch.unsqueeze(target_ccs_std.to(device, dtype=torch.float32), -1)
 
             optimizer.zero_grad()
             ccs_predicted, _, ccs_std_predicted = model(seq, mz, charge)
@@ -167,8 +143,8 @@ def main():
                 mz = mz.to(device, dtype=torch.float32)
                 charge = charge.to(device, dtype=torch.long)
 
-                target_ccs = target_ccs.to(device, dtype=torch.float32)
-                target_ccs_std = target_ccs_std.to(device, dtype=torch.float32)
+                target_ccs = torch.unsqueeze(target_ccs.to(device, dtype=torch.float32), -1)
+                target_ccs_std = torch.unsqueeze(target_ccs_std.to(device, dtype=torch.float32), -1)
 
                 ccs_predicted, _, ccs_std_predicted = model(seq, mz, charge)
                 loss = criterion((ccs_predicted, ccs_std_predicted), (target_ccs, target_ccs_std))
@@ -216,8 +192,8 @@ def main():
             mz = mz.to(device, dtype=torch.float32)
             charge = charge.to(device, dtype=torch.long)
 
-            target_ccs = target_ccs.to(device, dtype=torch.float32)
-            target_ccs_std = target_ccs_std.to(device, dtype=torch.float32)
+            target_ccs = torch.unsqueeze(target_ccs.to(device, dtype=torch.float32), -1)
+            target_ccs_std = torch.unsqueeze(target_ccs_std.to(device, dtype=torch.float32), -1)
 
             ccs_predicted, _, ccs_std_predicted = model(seq, mz, charge)
             loss = criterion((ccs_predicted, ccs_std_predicted), (target_ccs, target_ccs_std))
