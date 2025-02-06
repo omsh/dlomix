@@ -2,7 +2,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.optimize import curve_fit
 
 from ..constants import ALPHABET_UNMOD
 from .dataset import PeptideDataset
@@ -128,6 +127,8 @@ def get_sqrt_weights_and_biases(
     Returns:
         Tuple of weights and biases the initial projection layer can be parameterized with
     """
+    from scipy.optimize import curve_fit
+
     if fit_charge_state_one:
         slopes, intercepts = [], []
     else:

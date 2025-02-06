@@ -19,10 +19,7 @@ setuptools.setup(
     packages=setuptools.find_packages(where="src"),
     package_dir={"": "src"},
     include_package_data=True,
-    package_data={"": [
-        "data/processing/pickled_feature_dicts/*",
-        "data/processing/alphabets/unimod-vocab.json",
-    ]},
+    package_data={"": ["data/processing/pickled_feature_dicts/*"]},
     install_requires=[
         "datasets",
         "huggingface_hub",
