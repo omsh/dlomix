@@ -32,7 +32,7 @@ class ChargeStatePredictorTorch(nn.Module):
     * the relative charge state distribution
     of a peptide sequence.
 
-    batch_first used internally
+    batch_first used internally (batch, sequence, feature)
 
     Args:
         embedding_output_dim (int): The size of the embedding output dimension. Defaults to 16.
