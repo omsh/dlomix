@@ -68,7 +68,7 @@ class ChargeStatePredictor(tf.keras.Model):
         self.recurrent_layers_sizes = recurrent_layers_sizes
 
         if model_flavour == "relative":
-            self.final_activation = "softmax"  # Florian also used or "linear"
+            self.final_activation = "softmax"  # Florian also used "linear"
         elif model_flavour == "observed":
             self.final_activation = "sigmoid"
         elif model_flavour == "dominant":

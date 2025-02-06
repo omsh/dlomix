@@ -32,6 +32,8 @@ class ChargeStatePredictorTorch(nn.Module):
     * the relative charge state distribution
     of a peptide sequence.
 
+    batch_first used internally
+
     Args:
         embedding_output_dim (int): The size of the embedding output dimension. Defaults to 16.
         seq_length (int): The length of the input sequence. Defaults to 30.
@@ -62,6 +64,7 @@ class ChargeStatePredictorTorch(nn.Module):
 
         # tie the count of embeddings to the size of the vocabulary (count of amino acids)
         self.embeddings_count = len(alphabet)
+        self.seq_length = seq_length
 
         self.dropout_rate = dropout_rate
         self.latent_dropout_rate = latent_dropout_rate
@@ -69,7 +72,7 @@ class ChargeStatePredictorTorch(nn.Module):
         self.recurrent_layers_sizes = recurrent_layers_sizes
 
         if model_flavour == "relative":
-            self.final_activation = nn.Softmax  # Florian also used or "linear"
+            self.final_activation = nn.Softmax  # Florian also used "linear"
         elif model_flavour == "observed":
             self.final_activation = nn.Sigmoid
         elif model_flavour == "dominant":
