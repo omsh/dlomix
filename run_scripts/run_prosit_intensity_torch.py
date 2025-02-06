@@ -9,10 +9,16 @@ from dlomix.models import PrositIntensityPredictorTorch
 # consider the use-case for starting from a saved model
 
 model = PrositIntensityPredictorTorch(
-    # seq_length=30,
-    # input_keys={
-    #     "SEQUENCE_KEY": "modified_sequence",
+    seq_length=30,
+    use_prosit_ptm_features=True,
+    input_keys={
+        "SEQUENCE_KEY": "modified_sequence",
+    },
+    # meta_data_keys={
+    #     "COLLISION_ENERGY_KEY": "collision_energy_aligned_normed",
+    #     "PRECURSOR_CHARGE_KEY": "precursor_charge_onehot",
     # },
+    with_termini=False,
 )
 
 optimizer = optim.Adam(params=model.parameters(), lr=0.0001)
