@@ -1,9 +1,8 @@
 from dlomix.data import RetentionTimeDataset
-from dlomix.eval import TimeDeltaMetric, TimeDeltaMetric2
-
-# data path
+from dlomix.eval.tf.rt_eval import TimeDeltaMetric  # , TimeDeltaMetric2
 from dlomix.models import RetentionTimePredictor
 
+# data path
 DATAPATH = "../example_dataset/proteomTools_train_val.csv"
 
 """
@@ -29,17 +28,15 @@ create Model:
     - abstracts a RT Prediction Model
     - encoding to integers happens at beginning of the model
     - model has three main parts (embedding, encoder, regressor) with some parametrization
-    """
+"""
 
 model = RetentionTimePredictor(embedding_dim=50, seq_length=40, encoder="lstm")
 
 
-"""'
-
+"""
 Target is to always have the high-level model functions callabe to abstract out training, but still people
 can write their own custom training loops since the model extends tf.keras.Model
-
- """
+"""
 
 model.compile(
     optimizer="adam", loss="mse", metrics=["mean_absolute_error", TimeDeltaMetric()]
