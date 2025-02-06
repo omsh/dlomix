@@ -10,7 +10,7 @@ import lightning as pl
 import pandas as pd
 import torch
 import torch.nn as nn
-from datasets import Dataset, load_dataset
+from datasets import load_dataset
 from lightning.pytorch.tuner import Tuner
 from torch.utils.data import DataLoader
 
@@ -41,42 +41,29 @@ if not DATASOURCE.exists():
 # Load data from disk
 
 # %%
-col_map = {"Sample ID": "sample", "protein_group": "feature"}
-data = pd.read_csv(DATASOURCE).rename(col_map, axis=1)
-cats = data.select_dtypes(exclude="number").columns
-print(f"Selected as categories: {cats}")
-data = data.astype({c: "category" for c in cats})
-data
-
-
-# %%
-data[cats].describe()
-
-# %%
-n_samples, n_features = data[cats].nunique()
-
-# %% [markdown]
-# Lookup table for categories: category to integer index
-# - used to get embedding
-
-# %%
-lookup = {}
-for cat in cats:
-    lookup[cat] = {c: i for i, c in enumerate(data[cat].cat.categories)}
-lookup
+col_map = {"sample": "Sample ID", "feature": "protein_group", "intensity": "intensity"}
 
 # %% [markdown]
 # - load tabular dataset (long format of LFQ protein groups)
 
 # %%
-# ds = load_dataset(
-#     "csv",
-#     data_files=DATASOURCE,
-#     split="train",
-#     cache_dir=None,
-# ).with_format("torch", device=device)
-# load from pandas for now
-ds = dataset = Dataset.from_pandas(data).with_format("torch")
+ds = load_dataset(
+    "csv",
+    data_files=str(DATASOURCE),
+    split="train",
+    cache_dir=None,
+).with_format("torch")
+ds
+
+# %%
+set_samples = set(ds[col_map["sample"]])
+n_samples = len(set_samples)
+set_features = set(ds[col_map["feature"]])
+n_features = len(set_features)
+
+lookup = dict()
+lookup["sample"] = {c: i for i, c in enumerate(set_samples)}
+lookup["feature"] = {c: i for i, c in enumerate(set_features)}
 
 # %%
 ds_dict = ds.train_test_split(test_size=0.2)
@@ -98,9 +85,9 @@ batch
 
 # %%
 sample_ids, feature_ids, intensities = (
-    batch["sample"],
-    batch["feature"],
-    batch["intensity"],
+    batch[col_map["sample"]],
+    batch[col_map["feature"]],
+    batch[col_map["intensity"]],
 )
 
 # %% [markdown]
@@ -111,12 +98,16 @@ sample_ids, feature_ids, intensities = (
 
 
 # %%
+COL_MAP = {"sample": "sample", "feature": "feature", "intensity": "intensity"}
+
+
 class CollaborativeFilteringModel(pl.LightningModule):
     def __init__(
         self,
         num_samples: int,
         num_features: int,
         lookup: dict[str, dict[str, int]],
+        col_map: dict[str, str] = COL_MAP,
         learning_rate: float = 0.001,
         embedding_dim: int = 32,
     ):
@@ -125,13 +116,13 @@ class CollaborativeFilteringModel(pl.LightningModule):
         self.feature_embedding = nn.Embedding(
             num_features, embedding_dim, device=device
         )
+        self.col_map = col_map
         self.lookup = lookup
         self.fc = nn.Linear(embedding_dim, 1)
         self.loss = nn.MSELoss()
         self.learning_rate = learning_rate
 
     def forward(self, sample_ids, feature_ids):
-        # lookup integers
         sample_ids = torch.tensor(
             [self.lookup["sample"][sample] for sample in sample_ids],
             device=self.device,
@@ -147,11 +138,10 @@ class CollaborativeFilteringModel(pl.LightningModule):
         return dot_product
 
     def training_step(self, batch):
-        # sample_ids, feature_ids, intensities = batch
         sample_ids, feature_ids, intensities = (
-            batch["sample"],
-            batch["feature"],
-            batch["intensity"],
+            batch[self.col_map["sample"]],
+            batch[self.col_map["feature"]],
+            batch[self.col_map["intensity"]],
         )
 
         predictions = self(sample_ids, feature_ids)
@@ -160,7 +150,6 @@ class CollaborativeFilteringModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch):
-        # sample_ids, feature_ids, intensities = batch
         sample_ids, feature_ids, intensities = (
             batch["sample"],
             batch["feature"],
@@ -176,7 +165,10 @@ class CollaborativeFilteringModel(pl.LightningModule):
 
 
 model = CollaborativeFilteringModel(
-    num_samples=n_samples, num_features=n_features, lookup=lookup
+    num_samples=n_samples,
+    num_features=n_features,
+    lookup=lookup,
+    col_map=col_map,
 )
 model
 
@@ -190,3 +182,5 @@ tuner.lr_find(model, train_dataloaders=dl_train, attr_name="learning_rate")
 
 # %%
 trainer.fit(model, dl_train)
+
+# %%
