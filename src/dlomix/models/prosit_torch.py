@@ -112,22 +112,23 @@ class PrositIntensityPredictorTorch(nn.Module):
             )
 
         # # ptm encoder -> optional, only if ptm flag is provided -- not yet properly adapted
-        self.ptm_input_encoder, self.ptm_aa_fusion = None, None
-        if self.use_prosit_ptm_features:
-            self.ptm_input_encoder = nn.Sequential(
-                [
-                    torch.cat(name="ptm_features_concat"),
-                    nn.Linear(self.regressor_layer_size // 2),
-                    nn.Dropout(p=self.dropout_rate),
-                    nn.Linear(self.embedding_output_dim * 4),
-                    nn.Dropout(p=self.dropout_rate),
-                    nn.Linear(self.embedding_output_dim),
-                    nn.Dropout(p=self.dropout_rate),
-                ],
-                name="ptm_input_encoder",
-            )
+        # self.ptm_input_encoder, self.ptm_aa_fusion = None, None
+        # if self.use_prosit_ptm_features:
+        #     self.ptm_input_encoder = nn.Sequential(
+        #         col.OrderedDict([("ptm_input_encoder",
+        #             nn.Linear(in_features=self.regressor_layer_size // 2, out_features=self.regressor_layer_size // 2),
+        #             nn.Dropout(p=self.dropout_rate),
+        #             nn.Linear(in_features=self.regressor_layer_size // 2, out_features=self.embedding_output_dim * 4),
+        #             nn.Dropout(p=self.dropout_rate),
+        #             nn.Linear(in_features=self.embedding_output_dim * 4, out_features=self.embedding_output_dim),
+        #             nn.Dropout(p=self.dropout_rate))
 
-            self.ptm_aa_fusion = torch.cat(name="aa_ptm_in")
+        #             ("ptm_features_concat", torch.cat(inputs))
+        #         ],
+
+        #     ))
+
+        #     self.ptm_aa_fusion = torch.cat(name="aa_ptm_in")
 
     def _build_decoder(self):
         self.decoder = nn.Sequential(
@@ -141,7 +142,7 @@ class PrositIntensityPredictorTorch(nn.Module):
             ])
         )
 
-    def call(self, inputs, **kwargs):
+    def forward(self, inputs, **kwargs):
         encoded_meta = None
         encoded_ptm = None
 
@@ -179,7 +180,6 @@ class PrositIntensityPredictorTorch(nn.Module):
         x = self.embedding(peptides_in)
 
         print(x.shape)
-        breakpoint()
 
         # fusion of PTMs (before going into the GRU sequence encoder)
         if self.ptm_aa_fusion and encoded_ptm is not None:

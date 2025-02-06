@@ -14,10 +14,10 @@ model = PrositIntensityPredictorTorch(
     input_keys={
         "SEQUENCE_KEY": "modified_sequence",
     },
-    # meta_data_keys={
-    #     "COLLISION_ENERGY_KEY": "collision_energy_aligned_normed",
-    #     "PRECURSOR_CHARGE_KEY": "precursor_charge_onehot",
-    # },
+    meta_data_keys={
+        "COLLISION_ENERGY_KEY": "collision_energy_aligned_normed",
+        "PRECURSOR_CHARGE_KEY": "precursor_charge_onehot",
+    },
     with_termini=False,
 )
 
@@ -30,7 +30,7 @@ d = FragmentIonIntensityDataset(
     max_seq_len=30,
     batch_size=8,
     val_ratio=0.2,
-    # model_features=["collision_energy_aligned_normed", "precursor_charge_onehot"],
+    model_features=["collision_energy_aligned_normed", "precursor_charge_onehot"],
     sequence_column="modified_sequence",
     label_column="intensities_raw",
     features_to_extract=["mod_loss", "delta_mass"],

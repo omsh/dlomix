@@ -203,7 +203,9 @@ class PrositIntensityPredictor(tf.keras.Model):
         )
 
         self._build_encoders()
+        print(self._build_encoders())
         self._build_decoder()
+        print(self._build_decoder())
 
         self.attention = AttentionLayer(name="encoder_att")
 
@@ -323,6 +325,8 @@ class PrositIntensityPredictor(tf.keras.Model):
                 )
 
         x = self.embedding(peptides_in)
+
+        print("embedding shape ", x.shape)
 
         # fusion of PTMs (before going into the GRU sequence encoder)
         if self.ptm_aa_fusion and encoded_ptm is not None:
