@@ -27,6 +27,7 @@ d = ChargeStateDataset(
     label_column="charge_state_dist",
     max_seq_len=30,
     batch_size=8,
+    dataset_type="pt",
 )
 print(d)
 for x in d.tensor_train_data:
@@ -40,13 +41,12 @@ test_d = ChargeStateDataset(
     label_column="charge_state_dist",
     max_seq_len=30,
     batch_size=8,
+    dataset_type="pt",
 )
-test_targets = test_d["test"]["charge_state_dist"]
-test_sequences = test_d["test"]["modified_sequence"]
 
 
 model = model = ChargeStatePredictorTorch(
-    num_classes=6, seq_length=32, alphabet=PTMS_ALPHABET, model_flavour="relative"
+    num_classes=6, seq_length=30, alphabet=PTMS_ALPHABET, model_flavour="relative"
 )
 print(model)
 model.to(device)
@@ -104,7 +104,7 @@ for epoch in range(1, 2):
     val_loss_total = 0.0
     with torch.no_grad():
         for batch in d.tensor_val_data:
-            val_seq = batch["sequence_modified"]
+            val_seq = batch["modified_sequence"]
             val_label = batch["charge_state_dist"]
 
 
@@ -176,7 +176,7 @@ model.eval()
 test_loss_total = 0.0
 with torch.no_grad():
     for batch in test_d.tensor_test_data:
-        test_seq = batch["sequence_modified"]
+        test_seq = batch["modified_sequence"]
         test_label = batch["charge_state_dist"]
 
         # Ensure tensors are on the correct device and type
