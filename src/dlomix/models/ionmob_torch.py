@@ -99,7 +99,7 @@ class Ionmob(nn.Module):
         x_emb = self.emb(seq)
 
         # one-hot encode charge
-        charge = torch.nn.functional.one_hot(charge, num_classes=self.max_charge - 1).float()
+        charge = torch.nn.functional.one_hot(charge - 1, num_classes=self.max_charge).float()
 
         # check if mz is (batch_, 1) and not (batch_,), otherwise expand
         if mz.dim() == 1:

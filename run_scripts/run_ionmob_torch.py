@@ -18,68 +18,7 @@ from torch.utils.data import Dataset, DataLoader
 # scikit-learn to split the dataset.
 from sklearn.model_selection import train_test_split
 
-
-class PeptideDataset(Dataset):
-    def __init__(self, sequences, mz, charges, targets, targets_2):
-        self.sequences = sequences
-        self.mz = mz
-        self.charges = charges
-        self.targets = targets
-        self.targets_2 = targets_2
-
-    def __len__(self):
-        return len(self.targets)
-
-    def __getitem__(self, idx):
-        return (self.sequences[idx],
-                self.mz[idx],
-                self.charges[idx],
-                self.targets[idx],
-                self.targets_2[idx])
-
-
-def tokenize_and_pad(tokens: List[str],
-                     tokenizer: Dict[str, int],
-                     n: int = 50,
-                     pad_position: str = "post") -> np.ndarray:
-    """
-    Converts a list of tokens to indices using a tokenizer dictionary,
-    then pads (or truncates) to length n.
-    """
-    pad_token = "<PAD>"
-    pad_index = tokenizer.get(pad_token, 0)
-    token_indices = [tokenizer.get(token, tokenizer.get("<OOV>", 3)) for token in tokens]
-    if len(token_indices) < n:
-        pad_size = n - len(token_indices)
-        padding = [pad_index] * pad_size
-        if pad_position == "pre":
-            token_indices = padding + token_indices
-        else:
-            token_indices = token_indices + padding
-    else:
-        token_indices = token_indices[:n]
-    return np.array(token_indices)
-
-
-def load_tokenizer():
-    """Loads the tokenizer from the package resource."""
-    with importlib.resources.files("dlomix.data.processing.alphabets").joinpath("unimod-vocab.json").open("r") as f:
-        tokenizer_data = json.load(f)
-    return tokenizer_data
-
-
-def create_dataset_from_df(df: pd.DataFrame, tokenizer, max_seq_len: int, num_charges: int = 4) -> PeptideDataset:
-    """Converts a DataFrame into a PeptideDataset instance."""
-    S = torch.tensor(np.vstack(
-        df.sequence_tokenized_unimod.apply(lambda s: tokenize_and_pad(s, tokenizer=tokenizer, n=max_seq_len)).values
-    ))
-    M = torch.tensor(np.expand_dims(df.mz.astype(np.float32).values, 1))
-    # adjust charge to be zero-indexed for one-hot encoding
-    C = F.one_hot(torch.tensor(df.charge.values.astype(np.int64) - 1), num_classes=num_charges).float()
-    CCS = torch.tensor(np.expand_dims(df.ccs.values, 1).astype(np.float32))
-    CCS_PRED = torch.tensor(np.expand_dims(df.ccs_std.values, 1).astype(np.float32))
-    return PeptideDataset(S, M, C, CCS, CCS_PRED)
-
+from dlomix.data import  IonMobilityDataset
 
 def main():
     parser = argparse.ArgumentParser(description="Train Ionmob model with PyTorch")
@@ -154,35 +93,19 @@ def main():
 
     print(f"Train samples: {len(train_df)}, Validation samples: {len(val_df)}, Test samples: {len(test_df)}")
 
-    # load the tokenizer
-    unimod_tokenizer = load_tokenizer()
-
-    # create datasets
-    train_dataset = create_dataset_from_df(train_df, unimod_tokenizer, args.max_seq_len)
-    val_dataset = create_dataset_from_df(val_df, unimod_tokenizer, args.max_seq_len)
-    test_dataset = create_dataset_from_df(test_df, unimod_tokenizer, args.max_seq_len)
-
-    # create DataLoaders
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
-
-    # get the weights and biases for the initial sqrt fit using the training data
-    weights, biases = get_sqrt_weights_and_biases(
-        train_df.mz,
-        train_df.charge,
-        train_df.ccs,
-        fit_charge_state_one=True,
+    ds_huggingface = IonMobilityDataset(
+        data_source="theGreatHerrLebert/ionmob",
+        data_format="hub",
+        dataset_type="pt",
+        batch_size=1024,
     )
 
     # create the model and move it to the selected device
     model = Ionmob(
-        initial_weights=weights,
-        initial_bias=biases,
         emb_dim=args.emb_dim,
         gru_1=args.gru1,
         gru_2=args.gru2,
-        num_tokens=len(unimod_tokenizer)
+        num_tokens=len(ds_huggingface.extended_alphabet)
     )
     model.to(device)
 
@@ -208,13 +131,16 @@ def main():
         running_loss = 0.0
         local_step = 0
 
-        for batch in train_loader:
-            seq, mz, charge, target_ccs, target_std_ccs = batch
+        for batch in ds_huggingface.tensor_train_data:
+
+            seq, mz, charge, target_ccs, target_ccs_std = batch["sequence_modified"], batch["mz"], batch["charge"], batch["ccs"], batch["ccs_std"]
+            # Ensure tensors are on the correct device and type
             seq = seq.to(device, dtype=torch.long)
             mz = mz.to(device, dtype=torch.float32)
-            charge = charge.to(device, dtype=torch.float32)
+            charge = charge.to(device, dtype=torch.long)
+
             target_ccs = target_ccs.to(device, dtype=torch.float32)
-            target_ccs_std = target_std_ccs.to(device, dtype=torch.float32)
+            target_ccs_std = target_ccs_std.to(device, dtype=torch.float32)
 
             optimizer.zero_grad()
             ccs_predicted, _, ccs_std_predicted = model(seq, mz, charge)
@@ -228,23 +154,26 @@ def main():
                 print(f"Epoch {epoch}, Step {local_step}, Training Loss: {avg_loss:.4f}")
             local_step += 1
 
-        avg_train_loss = running_loss / len(train_loader)
+        avg_train_loss = running_loss / len(ds_huggingface.tensor_train_data)
 
         model.eval()
         val_loss_total = 0.0
         with torch.no_grad():
-            for batch in val_loader:
-                seq, mz, charge, target_ccs, target_std_ccs = batch
+            for batch in ds_huggingface.tensor_val_data:
+                seq, mz, charge, target_ccs, target_ccs_std = batch["sequence_modified"], batch["mz"], batch["charge"], \
+                batch["ccs"], batch["ccs_std"]
+                # Ensure tensors are on the correct device and type
                 seq = seq.to(device, dtype=torch.long)
                 mz = mz.to(device, dtype=torch.float32)
-                charge = charge.to(device, dtype=torch.float32)
+                charge = charge.to(device, dtype=torch.long)
+
                 target_ccs = target_ccs.to(device, dtype=torch.float32)
-                target_ccs_std = target_std_ccs.to(device, dtype=torch.float32)
+                target_ccs_std = target_ccs_std.to(device, dtype=torch.float32)
 
                 ccs_predicted, _, ccs_std_predicted = model(seq, mz, charge)
                 loss = criterion((ccs_predicted, ccs_std_predicted), (target_ccs, target_ccs_std))
                 val_loss_total += loss.item()
-        avg_val_loss = val_loss_total / len(val_loader)
+        avg_val_loss = val_loss_total / len(ds_huggingface.tensor_val_data)
         print(f"Epoch {epoch} Summary: Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}")
 
         # learning rate scheduler using the validation loss
@@ -279,18 +208,21 @@ def main():
     model.eval()
     test_loss_total = 0.0
     with torch.no_grad():
-        for batch in test_loader:
-            seq, mz, charge, target_ccs, target_std_ccs = batch
+        for batch in ds_huggingface.tensor_test_data:
+            seq, mz, charge, target_ccs, target_ccs_std = batch["sequence_modified"], batch["mz"], batch["charge"], \
+                batch["ccs"], batch["ccs_std"]
+            # Ensure tensors are on the correct device and type
             seq = seq.to(device, dtype=torch.long)
             mz = mz.to(device, dtype=torch.float32)
-            charge = charge.to(device, dtype=torch.float32)
+            charge = charge.to(device, dtype=torch.long)
+
             target_ccs = target_ccs.to(device, dtype=torch.float32)
-            target_ccs_std = target_std_ccs.to(device, dtype=torch.float32)
+            target_ccs_std = target_ccs_std.to(device, dtype=torch.float32)
 
             ccs_predicted, _, ccs_std_predicted = model(seq, mz, charge)
             loss = criterion((ccs_predicted, ccs_std_predicted), (target_ccs, target_ccs_std))
             test_loss_total += loss.item()
-    avg_test_loss = test_loss_total / len(test_loader)
+    avg_test_loss = test_loss_total / len(ds_huggingface.tensor_test_data)
     print(f"Test Loss: {avg_test_loss:.4f}")
 
 
