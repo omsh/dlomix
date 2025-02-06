@@ -1,10 +1,9 @@
 import logging
 
-import torch
 import tensorflow as tf
+import torch
 
-from dlomix.models import ChargeStatePredictorTorch
-from dlomix.models import ChargeStatePredictor
+from dlomix.models import ChargeStatePredictor, ChargeStatePredictorTorch
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +22,11 @@ def test_dominant_chargestate_model_torch():
     model = ChargeStatePredictorTorch(model_flavour="dominant")
     basic_model_existence_test_torch(model)
 
+
 def test_observed_chargestate_model_torch():
     model = ChargeStatePredictorTorch(model_flavour="observed")
     basic_model_existence_test_torch(model)
+
 
 def test_chargestate_distribution_model_torch():
     model = ChargeStatePredictorTorch(model_flavour="relative")
@@ -33,6 +34,7 @@ def test_chargestate_distribution_model_torch():
 
 
 # ------------------ CS | comparison of tf & torch ------------------
+
 
 def test_tf_torch_equivalence_chargestate_model_shapes():
     # to compare tf & torch: input & output shapes at beginnin & end of 1 forward
@@ -44,7 +46,9 @@ def test_tf_torch_equivalence_chargestate_model_shapes():
     dummi_input_tf = dummy_input_torch.numpy()
 
     model_tf = ChargeStatePredictor(model_flavour="dominant", seq_length=seq_len)
-    model_torch = ChargeStatePredictorTorch(model_flavour="dominant", seq_length=seq_len)
+    model_torch = ChargeStatePredictorTorch(
+        model_flavour="dominant", seq_length=seq_len
+    )
 
     output_tf = model_tf(dummi_input_tf)
     output_torch = model_torch(dummy_input_torch)

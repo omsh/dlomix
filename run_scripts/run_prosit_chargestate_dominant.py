@@ -1,8 +1,8 @@
 import tensorflow as tf
+
 from dlomix.constants import PTMS_ALPHABET
 from dlomix.data import ChargeStateDataset
 from dlomix.models import ChargeStatePredictor
-
 
 model = ChargeStatePredictor(
     num_classes=6, seq_length=32, alphabet=PTMS_ALPHABET, model_flavour="dominant"

@@ -1,9 +1,9 @@
 import tensorflow as tf
+
 from dlomix.constants import PTMS_ALPHABET
 from dlomix.data import ChargeStateDataset
 from dlomix.eval import adjusted_mean_absolute_error
 from dlomix.models import ChargeStatePredictor
-
 
 model = model = ChargeStatePredictor(
     num_classes=6, seq_length=32, alphabet=PTMS_ALPHABET, model_flavour="relative"
@@ -40,7 +40,9 @@ callbacks = [checkpoint, early_stop]
 
 
 model.compile(
-    optimizer=optimizer, loss="mean_squared_error", metrics=[adjusted_mean_absolute_error]
+    optimizer=optimizer,
+    loss="mean_squared_error",
+    metrics=[adjusted_mean_absolute_error],
 )
 
 

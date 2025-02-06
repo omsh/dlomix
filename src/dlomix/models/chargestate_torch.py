@@ -93,8 +93,7 @@ class ChargeStatePredictorTorch(nn.Module):
         )
 
         self.attention = AttentionLayerTorch(
-            feature_dim=self.recurrent_layers_sizes[1], 
-            seq_len=self.seq_length
+            feature_dim=self.recurrent_layers_sizes[1], seq_len=self.seq_length
         )
 
         self.regressor = nn.Sequential(

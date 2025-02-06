@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 
+
 class BiGRUSequentialEncoder(nn.Module):
-    """Encoder class needed to handle two GRU outputs in torch. 
-    
+    """Encoder class needed to handle two GRU outputs in torch.
+
     No implementation using nn.Sequential() possible.
 
     Args:
@@ -41,4 +42,3 @@ class BiGRUSequentialEncoder(nn.Module):
         x, _ = self.unidirectional_GRU(x)
         x = self.encoder_dropout2(x)
         return x
-    
