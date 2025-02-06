@@ -6,11 +6,12 @@ with Ligthening.
 # %%
 import pathlib
 
+import lightning as pl
 import pandas as pd
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from datasets import Dataset, load_dataset
+from lightning.pytorch.tuner import Tuner
 from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -90,7 +91,7 @@ for item in ds_dict["train"]:
 item
 
 # %%
-dl_train = DataLoader(ds_dict["train"], batch_size=32)
+dl_train = DataLoader(ds_dict["train"], batch_size=256)
 for batch in dl_train:
     break
 batch
@@ -112,7 +113,13 @@ sample_ids, feature_ids, intensities = (
 # %%
 class CollaborativeFilteringModel(pl.LightningModule):
     def __init__(
-        self, num_samples, num_features, lookup, embedding_dim=32, device="cpu"
+        self,
+        num_samples: int,
+        num_features: int,
+        lookup: dict[str, dict[str, int]],
+        learning_rate: float = 0.001,
+        embedding_dim: int = 32,
+        device: str = "cpu",
     ):
         super(CollaborativeFilteringModel, self).__init__()
         self.sample_embedding = nn.Embedding(num_samples, embedding_dim, device=device)
@@ -122,6 +129,7 @@ class CollaborativeFilteringModel(pl.LightningModule):
         self.lookup = lookup
         self.fc = nn.Linear(embedding_dim, 1)
         self.loss = nn.MSELoss()
+        self.learning_rate = learning_rate
 
     def forward(self, sample_ids, feature_ids):
         # lookup integers
@@ -163,7 +171,7 @@ class CollaborativeFilteringModel(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.001)
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
 
 model = CollaborativeFilteringModel(
@@ -174,5 +182,14 @@ model = CollaborativeFilteringModel(
 model
 
 # %%
-trainer = pl.Trainer(accelerator="cpu", max_epochs=10)
+trainer = pl.Trainer(accelerator="cpu", max_epochs=2)
+tuner = Tuner(trainer)
+
+
+# %%
+# Create a Tuner
+tuner.lr_find(model, train_dataloaders=dl_train, attr_name="learning_rate")
+
+# %%
+trainer.fit(model, dl_train)
 trainer.fit(model, dl_train)
