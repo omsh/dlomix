@@ -1,14 +1,16 @@
 import tensorflow as tf
-
+from dlomix.constants import PTMS_ALPHABET
 from dlomix.data import ChargeStateDataset
-from dlomix.models import DominantChargeStatePredictor
+from dlomix.models import ChargeStatePredictor
 
-model = DominantChargeStatePredictor(seq_length=30)
+
+model = ChargeStatePredictor(
+    num_classes=6, seq_length=32, alphabet=PTMS_ALPHABET, model_flavour="dominant"
+)
+print(model)
+
 
 optimizer = tf.keras.optimizers.Adam(lr=0.0001)
-
-TRAIN_DATAPATH = "../example_dataset/proteomTools_train_val.csv"
-TEST_DATAPATH = "../example_dataset/proteomTools_test.csv"
 
 d = ChargeStateDataset(
     data_format="hub",
@@ -18,26 +20,30 @@ d = ChargeStateDataset(
     max_seq_len=30,
     batch_size=512,
 )
-
-
 print(d)
+
+for x in d.tensor_train_data:
+    print(x)
+    break
 
 test_targets = d["test"]["most_abundant_charge_state"]
 test_sequences = d["test"]["modified_sequence"]
 
-model.compile(
-    optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]
-)
-
-weights_file = "./prosit_charge_test"
+# callbacks
+weights_file = "./output/prosit_charge_major_test"
 checkpoint = tf.keras.callbacks.ModelCheckpoint(
     weights_file, save_best_only=True, save_weights_only=True
 )
+early_stop = tf.keras.callbacks.EarlyStopping(patience=20)
 decay = tf.keras.callbacks.ReduceLROnPlateau(
     monitor="val_loss", factor=0.1, patience=10, verbose=1, min_lr=0
 )
-early_stop = tf.keras.callbacks.EarlyStopping(patience=20)
 callbacks = [checkpoint, early_stop, decay]
+
+
+model.compile(
+    optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]
+)
 
 
 history = model.fit(
