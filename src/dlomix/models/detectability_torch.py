@@ -89,9 +89,9 @@ class BahdanauAttention(nn.Module):
     def __init__(self, hidden_size):
         super(BahdanauAttention, self).__init__()
 
-        self.W1 = nn.Linear(hidden_size, hidden_size)
-        self.W2 = nn.Linear(hidden_size, hidden_size)
-        self.V = nn.Linear(hidden_size, 1)
+        self.W1 = nn.LazyLinear(hidden_size)
+        self.W2 = nn.LazyLinear(hidden_size)
+        self.V = nn.LazyLinear(1)
 
     def forward(self, query, values, mask):
         # query shape: (batch_size, hidden_size)
@@ -102,7 +102,8 @@ class BahdanauAttention(nn.Module):
         query = query.unsqueeze(1)
 
         # Calculate attention scores
-        scores = self.V(torch.tanh(self.W1(query) + self.W2(values)))
+        query_values = torch.tanh(self.W1(query) + self.W2(values))
+        scores = self.V(query_values)
 
         # Apply mask to attention scores
         # Set masked positions to -inf before softmax
@@ -131,7 +132,7 @@ class Decoder(nn.Module):
         self.attention = BahdanauAttention(hidden_size)
 
         self.gru = nn.GRU(
-            input_size=hidden_size,
+            input_size=hidden_size * 2,
             hidden_size=hidden_size,
             bidirectional=True,
             batch_first=True,

@@ -25,14 +25,10 @@ class DetectabilityModel(tf.keras.Model):
         self.decoder = Decoder(self.num_units, self.num_classes)
 
     def call(self, inputs):
-        print("inputs shape: ", inputs.shape)
         onehot_inputs = self.one_hot_encoder(inputs)
-        print("onehot shape: ", onehot_inputs.shape)
         enc_outputs, enc_state_f, enc_state_b = self.encoder(onehot_inputs)
-        print("enc outputs: ", enc_outputs.shape, enc_state_f.shape, enc_state_b.shape)
 
         dec_outputs = tf.concat([enc_state_f, enc_state_b], axis=-1)
-        print("concat shape: ", dec_outputs.shape)
 
         decoder_inputs = {
             "decoder_outputs": dec_outputs,
@@ -42,7 +38,6 @@ class DetectabilityModel(tf.keras.Model):
         }
 
         decoder_output = self.decoder(decoder_inputs)
-        print("decoder output shape: ", decoder_output.shape)
 
         return decoder_output
 
@@ -65,21 +60,12 @@ class Encoder(tf.keras.layers.Layer):
         self.encoder_bi = tf.keras.layers.Bidirectional(self.encoder_gru)
 
     def call(self, inputs):
-        print("In Encoder: ", inputs.shape)
         mask_ = self.mask_enco.compute_mask(inputs)
-        print("Mask Encoder: ", mask_.shape)
 
         mask_bi = self.encoder_bi.compute_mask(inputs, mask_)
-        print("Bi Mask Encoder: ", len(mask_bi))
 
         encoder_outputs, encoder_state_f, encoder_state_b = self.encoder_bi(
             inputs, initial_state=None, mask=mask_bi
-        )
-        print(
-            "Encoder outputs: ",
-            encoder_outputs.shape,
-            encoder_state_f.shape,
-            encoder_state_b.shape,
         )
 
         return encoder_outputs, encoder_state_f, encoder_state_b
@@ -98,7 +84,8 @@ class BahdanauAttention(tf.keras.layers.Layer):
 
         query_with_time_axis = tf.expand_dims(query, axis=1)
 
-        scores = self.V(tf.nn.tanh(self.W1(query_with_time_axis) + self.W2(values)))
+        query_values = tf.nn.tanh(self.W1(query_with_time_axis) + self.W2(values))
+        scores = self.V(query_values)
 
         attention_weights = tf.nn.softmax(scores, axis=1)
 
