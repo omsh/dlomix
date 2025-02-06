@@ -1,9 +1,9 @@
 from .base import *
 from .chargestate import *
+from .chargestate_torch import *
 from .deepLC import *
 from .detectability import *
 from .prosit import *
-from .chargestate_torch import *
 
 __all__ = [
     "RetentionTimePredictor",
@@ -12,5 +12,5 @@ __all__ = [
     "PrositIntensityPredictor",
     "ChargeStatePredictor",
     "DetectabilityModel",
-    "DominantChargeStatePredictorTorch"
+    "ChargeStatePredictorTorch",
 ]
