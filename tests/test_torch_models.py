@@ -3,7 +3,12 @@ import logging
 import tensorflow as tf
 import torch
 
-from dlomix.models import PrositRetentionTimePredictorTorch, PrositRetentionTimePredictor, ChargeStatePredictor, ChargeStatePredictorTorch
+from dlomix.models import (
+    ChargeStatePredictor,
+    ChargeStatePredictorTorch,
+    PrositRetentionTimePredictor,
+    PrositRetentionTimePredictorTorch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +21,7 @@ def basic_model_existence_test_torch(model):
 
 
 # ------------------ CS | check for existence of model & its parameters ------------------
+
 
 def test_dominant_chargestate_model_torch():
     model = ChargeStatePredictorTorch(model_flavour="dominant")
@@ -33,6 +39,7 @@ def test_chargestate_distribution_model_torch():
 
 
 # ------------------ CS | comparison of tf & torch ------------------
+
 
 def test_tf_torch_equivalence_chargestate_model_shapes():
     # to compare tf & torch: input & output shapes at beginnin & end of 1 forward
@@ -54,8 +61,8 @@ def test_tf_torch_equivalence_chargestate_model_shapes():
     assert output_tf.shape == output_torch.detach().numpy().shape
 
 
-
 # -------------- Prosit RT | check for existence of model & its parameters -------
+
 
 def test_RT_model_torch():
     model = PrositRetentionTimePredictorTorch()
@@ -63,6 +70,7 @@ def test_RT_model_torch():
 
 
 # -------------- Prosit RT | comparison of tf & torch ----------------------
+
 
 def test_tf_torch_equivalence_RT_model_shapes():
     # to compare tf & torch: input & output shapes at beginnin & end of 1 forward

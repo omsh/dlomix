@@ -88,7 +88,6 @@ class PrositRetentionTimePredictorTorch(nn.Module):
             in_features=self.regressor_layer_size, out_features=1
         )
 
-
     def forward(self, inputs, **kwargs):
         x = self.embedding(inputs)
         x = self.encoder(x)
@@ -96,4 +95,3 @@ class PrositRetentionTimePredictorTorch(nn.Module):
         x = self.regressor(x)
         x = self.output_layer(x)
         return x
-    

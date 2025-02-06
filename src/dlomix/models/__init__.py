@@ -3,8 +3,8 @@ from .chargestate import *
 from .chargestate_torch import *
 from .deepLC import *
 from .detectability import *
-from .prosit import *
 from .ionmob_torch import *
+from .prosit import *
 from .prosit_rt_torch import *
 
 __all__ = [
@@ -15,6 +15,5 @@ __all__ = [
     "ChargeStatePredictor",
     "DetectabilityModel",
     "Ionmob",
-    "PrositRetentionTimePredictorTorch"
-    "ChargeStatePredictorTorch",
+    "PrositRetentionTimePredictorTorch" "ChargeStatePredictorTorch",
 ]
