@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import argparse
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from dlomix.losses import MaskedIonmobLoss
 from dlomix.models import Ionmob
@@ -8,10 +10,7 @@ from dlomix.models import Ionmob
 import torch
 import torch.optim as optim
 
-# scikit-learn to split the dataset.
-from sklearn.model_selection import train_test_split
-
-from dlomix.data import  IonMobilityDataset
+from dlomix.data import IonMobilityDataset
 
 def main():
     parser = argparse.ArgumentParser(description="Train Ionmob model with PyTorch")
@@ -45,15 +44,20 @@ def main():
                         help="Path to save the best trained model")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable verbose mode (print additional information)")
+    # New arguments for logging and plotting:
+    parser.add_argument("--metrics_csv", type=str, default="metrics_log.csv",
+                        help="Path to save the CSV metrics log")
+    parser.add_argument("--plot_path", type=str, default="training_plots.png",
+                        help="Path to save the high resolution training plots image")
     args = parser.parse_args()
 
-    # verbose: print out configuration settings
+    # Verbose: print out configuration settings
     if args.verbose:
         print("Configuration:")
         for arg, value in vars(args).items():
             print(f"  {arg}: {value}")
 
-    # set device: use provided value or auto-detect
+    # Set device: use provided value or auto-detect
     if args.device:
         device = torch.device(args.device)
     else:
@@ -65,14 +69,15 @@ def main():
             device = torch.device("cpu")
     print(f"Using device: {device}")
 
+    # Create the dataset
     ds_huggingface = IonMobilityDataset(
         data_source="theGreatHerrLebert/ionmob",
         data_format="hub",
         dataset_type="pt",
-        batch_size=1024,
+        batch_size=args.batch_size,
     )
 
-    # create the model and move it to the selected device
+    # Create the model and move it to the selected device
     model = Ionmob(
         emb_dim=args.emb_dim,
         gru_1=args.gru1,
@@ -81,11 +86,11 @@ def main():
     )
     model.to(device)
 
-    # loss function and optimizer.
+    # Loss function and optimizer.
     criterion = MaskedIonmobLoss(use_mse=True)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    # learning rate scheduler.
+    # Learning rate scheduler.
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         factor=args.lr_factor,
@@ -93,10 +98,13 @@ def main():
         min_lr=args.min_lr
     )
 
-    # early stopping tracking.
+    # Early stopping tracking.
     best_val_loss = float("inf")
     epochs_without_improvement = 0
     best_model_state = None
+
+    # Prepare a list to store metrics per epoch for CSV logging.
+    metrics_log = []  # Each element will be a dict with keys: epoch, train_loss, val_loss, test_loss, learning_rate
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -104,13 +112,16 @@ def main():
         local_step = 0
 
         for batch in ds_huggingface.tensor_train_data:
+            seq = batch["sequence_modified"]
+            mz = batch["mz"]
+            charge = batch["charge"]
+            target_ccs = batch["ccs"]
+            target_ccs_std = batch["ccs_std"]
 
-            seq, mz, charge, target_ccs, target_ccs_std = batch["sequence_modified"], batch["mz"], batch["charge"], batch["ccs"], batch["ccs_std"]
             # Ensure tensors are on the correct device and type
             seq = seq.to(device, dtype=torch.long)
             mz = mz.to(device, dtype=torch.float32)
             charge = charge.to(device, dtype=torch.long)
-
             target_ccs = torch.unsqueeze(target_ccs.to(device, dtype=torch.float32), -1)
             target_ccs_std = torch.unsqueeze(target_ccs_std.to(device, dtype=torch.float32), -1)
 
@@ -128,17 +139,21 @@ def main():
 
         avg_train_loss = running_loss / len(ds_huggingface.tensor_train_data)
 
+        # Validation phase.
         model.eval()
         val_loss_total = 0.0
         with torch.no_grad():
             for batch in ds_huggingface.tensor_val_data:
-                seq, mz, charge, target_ccs, target_ccs_std = batch["sequence_modified"], batch["mz"], batch["charge"], \
-                batch["ccs"], batch["ccs_std"]
+                seq = batch["sequence_modified"]
+                mz = batch["mz"]
+                charge = batch["charge"]
+                target_ccs = batch["ccs"]
+                target_ccs_std = batch["ccs_std"]
+
                 # Ensure tensors are on the correct device and type
                 seq = seq.to(device, dtype=torch.long)
                 mz = mz.to(device, dtype=torch.float32)
                 charge = charge.to(device, dtype=torch.long)
-
                 target_ccs = torch.unsqueeze(target_ccs.to(device, dtype=torch.float32), -1)
                 target_ccs_std = torch.unsqueeze(target_ccs_std.to(device, dtype=torch.float32), -1)
 
@@ -148,13 +163,13 @@ def main():
         avg_val_loss = val_loss_total / len(ds_huggingface.tensor_val_data)
         print(f"Epoch {epoch} Summary: Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}")
 
-        # learning rate scheduler using the validation loss
+        # Learning rate scheduler using the validation loss.
         scheduler.step(avg_val_loss)
+        current_lr = scheduler.optimizer.param_groups[0]["lr"]
         if args.verbose:
-            current_lr = scheduler.optimizer.param_groups[0]["lr"]
             print(f"Epoch {epoch}: Current Learning Rate: {current_lr}")
 
-        # early stopping if the validation loss does not improve for a number of epochs, stop
+        # Early stopping check.
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             epochs_without_improvement = 0
@@ -164,30 +179,50 @@ def main():
             print(f"No improvement for {epochs_without_improvement} epoch(s).")
             if epochs_without_improvement >= args.patience:
                 print("Early stopping triggered.")
+                # Log current epoch metrics before breaking.
+                metrics_log.append({
+                    "epoch": epoch,
+                    "train_loss": avg_train_loss,
+                    "val_loss": avg_val_loss,
+                    "test_loss": None,
+                    "learning_rate": current_lr
+                })
                 break
 
-    # restore the best model
+        # Log metrics for the current epoch.
+        metrics_log.append({
+            "epoch": epoch,
+            "train_loss": avg_train_loss,
+            "val_loss": avg_val_loss,
+            "test_loss": None,  # will be filled later
+            "learning_rate": current_lr
+        })
+
+    # Restore the best model.
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
         print("Loaded best model state.")
 
-    # save the best model to the provided path.
+    # Save the best model.
     if args.save_path:
         torch.save(model.state_dict(), args.save_path)
         print(f"Best model saved to {args.save_path}")
 
-
+    # Test phase.
     model.eval()
     test_loss_total = 0.0
     with torch.no_grad():
         for batch in ds_huggingface.tensor_test_data:
-            seq, mz, charge, target_ccs, target_ccs_std = batch["sequence_modified"], batch["mz"], batch["charge"], \
-                batch["ccs"], batch["ccs_std"]
+            seq = batch["sequence_modified"]
+            mz = batch["mz"]
+            charge = batch["charge"]
+            target_ccs = batch["ccs"]
+            target_ccs_std = batch["ccs_std"]
+
             # Ensure tensors are on the correct device and type
             seq = seq.to(device, dtype=torch.long)
             mz = mz.to(device, dtype=torch.float32)
             charge = charge.to(device, dtype=torch.long)
-
             target_ccs = torch.unsqueeze(target_ccs.to(device, dtype=torch.float32), -1)
             target_ccs_std = torch.unsqueeze(target_ccs_std.to(device, dtype=torch.float32), -1)
 
@@ -197,6 +232,66 @@ def main():
     avg_test_loss = test_loss_total / len(ds_huggingface.tensor_test_data)
     print(f"Test Loss: {avg_test_loss:.4f}")
 
+    # Append final test metrics as an extra row in our log.
+    metrics_log.append({
+        "epoch": "test",
+        "train_loss": None,
+        "val_loss": None,
+        "test_loss": avg_test_loss,
+        "learning_rate": None
+    })
+
+    # Save the metrics log to CSV.
+    df_metrics = pd.DataFrame(metrics_log)
+    df_metrics.to_csv(args.metrics_csv, index=False)
+    print(f"Metrics logged to CSV file: {args.metrics_csv}")
+
+    # Set a nice plotting style.
+    sns.set_style('darkgrid')
+
+    # Filter out the epochs (numerical entries only).
+    epochs = [entry["epoch"] for entry in metrics_log if isinstance(entry["epoch"], int)]
+    train_losses = [entry["train_loss"] for entry in metrics_log if isinstance(entry["epoch"], int)]
+    val_losses = [entry["val_loss"] for entry in metrics_log if isinstance(entry["epoch"], int)]
+    lrs = [entry["learning_rate"] for entry in metrics_log if isinstance(entry["epoch"], int)]
+
+    # Create a figure with two subplots: one for loss and one for learning rate.
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=300)
+
+    # Plot training and validation loss.
+    ax1.plot(epochs, train_losses, label="Train Loss", marker='o')
+    ax1.plot(epochs, val_losses, label="Validation Loss", marker='s')
+    ax1.set_title("Loss per Epoch")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.legend()
+
+    # Add a text box with key model parameters and best validation loss.
+    info_text = (
+        f"Model: Ionmob\n"
+        f"Emb dim: {args.emb_dim}\n"
+        f"GRU1: {args.gru1}\n"
+        f"GRU2: {args.gru2}\n"
+        f"Batch size: {args.batch_size}\n"
+        f"Initial LR: {args.lr}\n"
+        f"Best Val Loss: {best_val_loss:.4f}\n"
+        f"Test Loss: {avg_test_loss:.4f}"
+    )
+    ax1.text(0.95, 0.95, info_text, transform=ax1.transAxes, fontsize=9,
+             verticalalignment='top', horizontalalignment='right',
+             bbox=dict(boxstyle="round,pad=0.5", facecolor="white", alpha=0.8))
+
+    # Plot learning rate over epochs.
+    ax2.plot(epochs, lrs, label="Learning Rate", marker='^', color="orange")
+    ax2.set_title("Learning Rate Schedule")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Learning Rate")
+    ax2.legend()
+
+    plt.tight_layout()
+    plt.savefig(args.plot_path)
+    print(f"Training plots saved to {args.plot_path}")
+    plt.close()
 
 if __name__ == "__main__":
     main()
