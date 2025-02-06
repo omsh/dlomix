@@ -41,7 +41,7 @@ class ChargeStatePredictor(tf.keras.Model):
         regressor_layer_size (int): The size of the regressor layer. Defaults to 512.
         num_classes (int): The number of classes for the output corresponding to charge states available in the data. Defaults to 6.
         model_flavour (str): The type of precursor charge state prediction to be done.
-            Can be either "dominant" (using softmax activation), "observed" (using sigmoid activation) or "relative" (using softmax activation).
+            Can be either "dominant" (using softmax activation), "observed" (using sigmoid activation) or "relative" (using linear activation).
             Defaults to "relative".
     """
 
@@ -68,10 +68,13 @@ class ChargeStatePredictor(tf.keras.Model):
         self.recurrent_layers_sizes = recurrent_layers_sizes
 
         if model_flavour == "relative":
-            self.final_activation = "softmax"  # Florian also used "linear"
+            # regression problem
+            self.final_activation = "linear"
         elif model_flavour == "observed":
+            # multi-label multi-class classification problem
             self.final_activation = "sigmoid"
         elif model_flavour == "dominant":
+            # multi-class classification problem
             self.final_activation = "softmax"
         else:
             warnings.warn(f"{model_flavour} not available")

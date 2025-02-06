@@ -45,7 +45,7 @@ class ChargeStatePredictorTorch(nn.Module):
         regressor_layer_size (int): The size of the regressor layer. Defaults to 512.
         num_classes (int): The number of classes for the output corresponding to charge states available in the data. Defaults to 6.
         model_flavour (str): The type of precursor charge state prediction to be done.
-            Can be either "dominant" (using softmax activation), "observed" (using sigmoid activation) or "relative" (using softmax activation).
+            Can be either "dominant" (using softmax activation), "observed" (using sigmoid activation) or "relative" (using linear activation).
             Defaults to "relative".
     """
 
@@ -73,10 +73,13 @@ class ChargeStatePredictorTorch(nn.Module):
         self.recurrent_layers_sizes = recurrent_layers_sizes
 
         if model_flavour == "relative":
-            self.final_activation = nn.Softmax()  # Florian also used "linear"
+            # regression problem
+            self.final_activation = nn.Identity()  # this is how a "linear activation" is done in torch
         elif model_flavour == "observed":
+            # multi-label multi-class classification problem
             self.final_activation = nn.Sigmoid()
         elif model_flavour == "dominant":
+            # multi-class classification problem
             self.final_activation = nn.Softmax()
         else:
             warnings.warn(f"{model_flavour} not available")
