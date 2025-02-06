@@ -57,6 +57,7 @@ class Ionmob(nn.Module):
             do: dropout rate
         """
         super(Ionmob, self).__init__()
+        self.max_charge = max_charge
         self.max_peptide_length = max_peptide_length
         self.initial = SquareRootProjectionLayer(initial_weights, initial_bias, trainable=True)
         self.emb = nn.Embedding(num_tokens + 1, emb_dim)
@@ -65,8 +66,8 @@ class Ionmob(nn.Module):
         self.dropout = nn.Dropout(do)
 
         # The dense layer input size is the size of the
-        # second GRU layer * 2 (bidirectional) + max_charge - 1 (charge index start 0)
-        dense1_input_size = gru_2 * 2 + max_charge - 1
+        # second GRU layer * 2 (bidirectional) + max_charge
+        dense1_input_size = gru_2 * 2 + max_charge
         self.dense_ccs_1 = nn.Linear(dense1_input_size, 128)
         self.dense_ccs_2 = nn.Linear(128, 64)
 
@@ -96,6 +97,13 @@ class Ionmob(nn.Module):
         seq = seq.long()
         batch_size = mz.size(0)
         x_emb = self.emb(seq)
+
+        # one-hot encode charge
+        charge = torch.nn.functional.one_hot(charge, num_classes=self.max_charge - 1).float()
+
+        # check if mz is (batch_, 1) and not (batch_,), otherwise expand
+        if mz.dim() == 1:
+            mz = mz.unsqueeze(1)
 
         x_gru1, _ = self.gru1(x_emb)
         x_gru2, h_n = self.gru2(x_gru1)
