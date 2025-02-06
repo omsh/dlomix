@@ -10,9 +10,10 @@ def test_dominant_chargestate_model_torch():
     logger.info(model)
     assert model is not None
 
-    #logger.info()
+    # logger.info()
 
     # check model.parameters not empty --> nn.Module.parameters()
+
 
 # to compare tf & torch: shapes at beginnin & end of forward & in between the layers - compare
 

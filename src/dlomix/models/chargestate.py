@@ -1,5 +1,6 @@
-import tensorflow as tf
 import warnings
+
+import tensorflow as tf
 
 from ..constants import ALPHABET_UNMOD
 from ..layers.attention import AttentionLayer
@@ -26,7 +27,7 @@ class ChargeStatePredictor(tf.keras.Model):
     """
     Precursor Charge State Prediction Model for predicting either:
     * the dominant charge state or
-    * all observed charge states or 
+    * all observed charge states or
     * the relative charge state distribution
     of a peptide sequence.
 
@@ -39,8 +40,9 @@ class ChargeStatePredictor(tf.keras.Model):
         recurrent_layers_sizes (tuple): The sizes of the recurrent layers. Defaults to (256, 512).
         regressor_layer_size (int): The size of the regressor layer. Defaults to 512.
         num_classes (int): The number of classes for the output corresponding to charge states available in the data. Defaults to 6.
-        model_flavour (str): The type of precursor charge state prediction to be done. 
-            Can be either "dominant" (using softmax activation), "observed" (using sigmoid activation) or "relative" (using softmax activation). Defaults to "relative".
+        model_flavour (str): The type of precursor charge state prediction to be done.
+            Can be either "dominant" (using softmax activation), "observed" (using sigmoid activation) or "relative" (using softmax activation).
+            Defaults to "relative".
     """
 
     def __init__(
@@ -91,7 +93,9 @@ class ChargeStatePredictor(tf.keras.Model):
             ]
         )
 
-        self.output_layer = tf.keras.layers.Dense(num_classes, activation=self.final_activation)
+        self.output_layer = tf.keras.layers.Dense(
+            num_classes, activation=self.final_activation
+        )
 
     def _build_encoder(self):
         self.encoder = tf.keras.Sequential(

@@ -123,10 +123,11 @@ def test_prosit_intensity_model_encoding_metadata_missing():
             }
         )
 
+
 def basic_model_existence_test(model):
     logger.info(model)
     assert model is not None
-    
+
     model.build((None, 30))
     assert len(model.trainable_variables) > 0
 
