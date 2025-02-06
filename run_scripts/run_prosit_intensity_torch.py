@@ -10,7 +10,7 @@ from dlomix.models import PrositIntensityPredictorTorch
 
 model = PrositIntensityPredictorTorch(
     seq_length=30,
-    use_prosit_ptm_features=True,
+    # use_prosit_ptm_features=True,
     input_keys={
         "SEQUENCE_KEY": "modified_sequence",
     },

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from ..constants import ALPHABET_UNMOD
 # from ..data.processing.feature_extractors import FEATURE_EXTRACTORS_PARAMETERS
-from ..layers.attention import AttentionLayer, DecoderAttentionLayer
+from ..layers.attention_torch import AttentionLayerTorch, DecoderAttentionLayerTorch
 
 class PrositIntensityPredictorTorch(nn.Module):
     def __init__(
@@ -58,20 +58,22 @@ class PrositIntensityPredictorTorch(nn.Module):
         self._build_encoders()
         self._build_decoder()
 
-        self.attention = AttentionLayer(name="encoder_att")
+        self.attention =  AttentionLayerTorch(feature_dim=regressor_layer_size, seq_len=seq_length)
 
         self.meta_data_fusion_layer = None
-        if self.meta_data_keys:
-            self.meta_data_fusion_layer = nn.Sequential(
-                col.OrderedDict([
-                    torch.mul(name="add_meta"),
-                    torch.Tensor.repeat(self.max_ion, name="repeat"),
-                ])
-            )
+        # if self.meta_data_keys: ---> Still needs to be fixed
+        #     self.meta_data_fusion_layer = nn.Sequential(
+        #         col.OrderedDict([
+        #             torch.mul(name="add_meta"),
+        #             torch.Tensor.repeat(self.max_ion, name="repeat"),
+        #         ])
+        #     )
+
+        
         
         self.regressor = nn.Sequential(
             col.OrderedDict([
-                ("time_dense", TimeDistributed(nn.Linear(in_features=self.len_fion, out_features=len_fion)   # no specified activation, hence no activation is applied in tf 
+                ("time_dense", TimeDistributed(nn.LazyLinear(out_features=len_fion)   # no specified activation, hence no activation is applied in tf 
                 )),
                 ("activation", nn.LeakyReLU()),
                 ("out", nn.Flatten()),
@@ -81,54 +83,43 @@ class PrositIntensityPredictorTorch(nn.Module):
 
     def _build_encoders(self):
         # sequence encoder -> always present
-        self.sequence_encoder = nn.Sequential(
-                nn.GRU(
+        bidir_layer = nn.GRU(
                     input_size=self.embedding_output_dim, 
                     hidden_size=self.recurrent_layers_sizes[0],
                     batch_first=True, 
-                    bidirectional=True
-                ),
-                nn.Dropout(p=self.dropout_rate),
-                nn.GRU(
+                    bidirectional=True)
+        GRU_layer = nn.GRU(
                     input_size=self.recurrent_layers_sizes[0]*2, 
                     hidden_size=self.recurrent_layers_sizes[1],
                     batch_first=True, 
-                    bidirectional=False
-                ),
-                nn.Dropout(p=self.dropout_rate),
-        )
+                    bidirectional=False)
+        
+        dropout_enc = nn.Dropout(p=self.dropout_rate)
+    
+        self.sequence_encoder = nn.Sequential(bidir_layer, GRU_layer)
 
         # # meta data encoder -> optional, only if meta data keys are provided -- not yet adapted
         self.meta_encoder = None
         if self.meta_data_keys:
-            self.meta_encoder = nn.Sequential(
-                [
-                    torch.cat(name="meta_in"),
-                    nn.Linear(
-                        self.recurrent_layers_sizes[1], name="meta_dense"
-                    ),
-                    nn.Dropout(p=self.dropout_rate, name="meta_dense_do"),
-                ]
-            )
+            self.meta_encoder = nn.Sequential(col.OrderedDict([ # use cat? or is nn.seq fine?
+                ("meta_dense", nn.LazyLinear(out_features=self.recurrent_layers_sizes[1])),
+                ("dropout", nn.Dropout(p=self.dropout_rate))
+            ]))
+            print("caution: input dimension hard-coded")
 
-        # # ptm encoder -> optional, only if ptm flag is provided -- not yet properly adapted
-        # self.ptm_input_encoder, self.ptm_aa_fusion = None, None
-        # if self.use_prosit_ptm_features:
-        #     self.ptm_input_encoder = nn.Sequential(
-        #         col.OrderedDict([("ptm_input_encoder",
-        #             nn.Linear(in_features=self.regressor_layer_size // 2, out_features=self.regressor_layer_size // 2),
-        #             nn.Dropout(p=self.dropout_rate),
-        #             nn.Linear(in_features=self.regressor_layer_size // 2, out_features=self.embedding_output_dim * 4),
-        #             nn.Dropout(p=self.dropout_rate),
-        #             nn.Linear(in_features=self.embedding_output_dim * 4, out_features=self.embedding_output_dim),
-        #             nn.Dropout(p=self.dropout_rate))
+        # # # ptm encoder -> optional, only if ptm flag is provided -- not yet properly adapted
+        self.ptm_input_encoder, self.ptm_aa_fusion = None, None
+        if self.use_prosit_ptm_features:
+              self.ptm_input_encoder = nn.Sequential(col.OrderedDict([
+                ("linear1", nn.LazyLinear(out_features=self.regressor_layer_size // 2)),
+                ("dropout1", nn.Dropout(p=self.dropout_rate)),
+                ("linear2", nn.LazyLinear(out_features=self.embedding_output_dim * 4)),
+                ("dropout2", nn.Dropout(p=self.dropout_rate)),
+                ("linear3", nn.LazyLinear(out_features=self.embedding_output_dim)),
+                ("dropout3", nn.Dropout(p=self.dropout_rate))
+            ]))
 
-        #             ("ptm_features_concat", torch.cat(inputs))
-        #         ],
-
-        #     ))
-
-        #     self.ptm_aa_fusion = torch.cat(name="aa_ptm_in")
+        # self.ptm_aa_fusion = torch.cat((self.sequence_encoder, self.ptm_input_encoder))
 
     def _build_decoder(self):
         self.decoder = nn.Sequential(
@@ -138,7 +129,7 @@ class PrositIntensityPredictorTorch(nn.Module):
                     hidden_size=self.recurrent_layers_sizes[1],
                 )),
                 ("droppout", nn.Dropout(p=self.dropout_rate)),
-                # DecoderAttentionLayerTorch(self.max_ion),
+                ("attention", DecoderAttentionLayerTorch(self.max_ion)),
             ])
         )
 
@@ -159,41 +150,48 @@ class PrositIntensityPredictorTorch(nn.Module):
             )
 
             if self.meta_encoder and len(meta_data) > 0:
+                if isinstance(meta_data, list):
+                    meta_data = torch.cat(meta_data, dim=-1)
                 encoded_meta = self.meta_encoder(meta_data)
+                
             else:
                 raise ValueError(
                     f"Following metadata keys were specified when creating the model: {self.meta_data_keys}, but the corresponding values do not exist in the input. The actual input passed to the model contains the following keys: {list(inputs.keys())}"
                 )
+            
+            
+            
+            # read PTM features from the input dict # --> Still needs to be implemented
+            # ptm_ac_features = self._collect_values_from_inputs_if_exists(
+            #     inputs, PrositIntensityPredictorTorch.PTM_INPUT_KEYS
+            # )
 
-            # read PTM features from the input dict
-            ptm_ac_features = self._collect_values_from_inputs_if_exists(
-                inputs, PrositIntensityPredictorTorch.PTM_INPUT_KEYS
-            )
-
-            if self.ptm_input_encoder and len(ptm_ac_features) > 0:
-                encoded_ptm = self.ptm_input_encoder(ptm_ac_features)
-            elif self.use_prosit_ptm_features:
-                warnings.warn(
-                    f"PTM features enabled and following PTM features are expected in the model for Prosit Intesity: {PrositIntensityPredictorTorch.PTM_INPUT_KEYS}. The actual input passed to the model contains the following keys: {list(inputs.keys())}. Falling back to no PTM features."
-                )
+            # if self.ptm_input_encoder and len(ptm_ac_features) > 0:
+            #     encoded_ptm = self.ptm_input_encoder(ptm_ac_features)
+            # elif self.use_prosit_ptm_features:
+            #     warnings.warn(
+            #         f"PTM features enabled and following PTM features are expected in the model for Prosit Intesity: {PrositIntensityPredictorTorch.PTM_INPUT_KEYS}. The actual input passed to the model contains the following keys: {list(inputs.keys())}. Falling back to no PTM features."
+            #     )
 
         x = self.embedding(peptides_in)
-
-        print(x.shape)
 
         # fusion of PTMs (before going into the GRU sequence encoder)
         if self.ptm_aa_fusion and encoded_ptm is not None:
             x = self.ptm_aa_fusion([x, encoded_ptm])
 
-        x = self.sequence_encoder(x)
-
+        # x = self.sequence_encoder(x)
+        # print("helooo")
+        print(x.shape)
+        
         x = self.attention(x)
+
+        print("yayay")
 
         if self.meta_data_fusion_layer and encoded_meta is not None:
             x = self.meta_data_fusion_layer([x, encoded_meta])
         else:
             # no metadata -> add a dimension to comply with the shape
-            x = nn.unsqueeze(x, axis=1)
+            x = torch.unsqueeze(x, axis=1)
 
         x = self.decoder(x)
         x = self.regressor(x)
