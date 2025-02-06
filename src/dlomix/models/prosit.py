@@ -203,9 +203,7 @@ class PrositIntensityPredictor(tf.keras.Model):
         )
 
         self._build_encoders()
-        print(self._build_encoders())
         self._build_decoder()
-        print(self._build_decoder())
 
         self.attention = AttentionLayer(name="encoder_att")
 
@@ -334,7 +332,10 @@ class PrositIntensityPredictor(tf.keras.Model):
 
         x = self.sequence_encoder(x)
 
+        print(f"encoder shape: {x.shape}")
         x = self.attention(x)
+
+        print(f"attention shape: {x.shape}")
 
         if self.meta_data_fusion_layer and encoded_meta is not None:
             x = self.meta_data_fusion_layer([x, encoded_meta])
@@ -343,7 +344,10 @@ class PrositIntensityPredictor(tf.keras.Model):
             x = tf.expand_dims(x, axis=1)
 
         x = self.decoder(x)
+        print(f"decoder shape: {x.shape}")
+
         x = self.regressor(x)
+        print(f"regressor shape: {x.shape}")
 
         return x
 

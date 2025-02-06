@@ -5,6 +5,8 @@ import torch.nn as nn
 from ..constants import ALPHABET_UNMOD
 # from ..data.processing.feature_extractors import FEATURE_EXTRACTORS_PARAMETERS
 from ..layers.attention_torch import AttentionLayerTorch, DecoderAttentionLayerTorch
+from dlomix.layers.bi_gru_seq_encoder_torch import BiGRUSequentialEncoder
+from dlomix.layers.gru_seq_decoder import GRUSequentialDecoder
 
 class PrositIntensityPredictorTorch(nn.Module):
     def __init__(
@@ -73,30 +75,18 @@ class PrositIntensityPredictorTorch(nn.Module):
         
         self.regressor = nn.Sequential(
             col.OrderedDict([
-                ("time_dense", TimeDistributed(nn.LazyLinear(out_features=len_fion)   # no specified activation, hence no activation is applied in tf 
-                )),
+                ("time_dense", nn.LazyLinear(out_features=len_fion)),
                 ("activation", nn.LeakyReLU()),
-                ("out", nn.Flatten()),
+                ("output", nn.Flatten())
             ])
         )
       
 
     def _build_encoders(self):
         # sequence encoder -> always present
-        bidir_layer = nn.GRU(
-                    input_size=self.embedding_output_dim, 
-                    hidden_size=self.recurrent_layers_sizes[0],
-                    batch_first=True, 
-                    bidirectional=True)
-        GRU_layer = nn.GRU(
-                    input_size=self.recurrent_layers_sizes[0]*2, 
-                    hidden_size=self.recurrent_layers_sizes[1],
-                    batch_first=True, 
-                    bidirectional=False)
-        
-        dropout_enc = nn.Dropout(p=self.dropout_rate)
-    
-        self.sequence_encoder = nn.Sequential(bidir_layer, GRU_layer)
+        self.sequence_encoder = BiGRUSequentialEncoder(embedding_output_dim=self.embedding_output_dim, 
+                                                       recurrent_layers_sizes=self.recurrent_layers_sizes, 
+                                                       dropout_rate=self.dropout_rate)
 
         # # meta data encoder -> optional, only if meta data keys are provided -- not yet adapted
         self.meta_encoder = None
@@ -122,16 +112,9 @@ class PrositIntensityPredictorTorch(nn.Module):
         # self.ptm_aa_fusion = torch.cat((self.sequence_encoder, self.ptm_input_encoder))
 
     def _build_decoder(self):
-        self.decoder = nn.Sequential(
-            col.OrderedDict([  
-                ("decoder", nn.GRU(
-                    input_size=self.recurrent_layers_sizes[0], 
-                    hidden_size=self.recurrent_layers_sizes[1],
-                )),
-                ("droppout", nn.Dropout(p=self.dropout_rate)),
-                ("attention", DecoderAttentionLayerTorch(self.max_ion)),
-            ])
-        )
+        self.decoder = GRUSequentialDecoder(recurrent_layers_sizes=self.recurrent_layers_sizes, 
+                                            dropout_rate=self.dropout_rate,
+                                            max_ion=self.max_ion)
 
     def forward(self, inputs, **kwargs):
         encoded_meta = None
@@ -173,19 +156,18 @@ class PrositIntensityPredictorTorch(nn.Module):
             #         f"PTM features enabled and following PTM features are expected in the model for Prosit Intesity: {PrositIntensityPredictorTorch.PTM_INPUT_KEYS}. The actual input passed to the model contains the following keys: {list(inputs.keys())}. Falling back to no PTM features."
             #     )
 
+        print(peptides_in.shape)
         x = self.embedding(peptides_in)
+        print(x.shape)
 
         # fusion of PTMs (before going into the GRU sequence encoder)
         if self.ptm_aa_fusion and encoded_ptm is not None:
             x = self.ptm_aa_fusion([x, encoded_ptm])
 
-        # x = self.sequence_encoder(x)
-        # print("helooo")
-        print(x.shape)
-        
+        x = self.sequence_encoder(x)
+        print(f"encoder {x.shape}")
         x = self.attention(x)
-
-        print("yayay")
+        print(f"attention {x.shape}")
 
         if self.meta_data_fusion_layer and encoded_meta is not None:
             x = self.meta_data_fusion_layer([x, encoded_meta])
@@ -194,8 +176,9 @@ class PrositIntensityPredictorTorch(nn.Module):
             x = torch.unsqueeze(x, axis=1)
 
         x = self.decoder(x)
+        print(f"decoder: {x.shape}")
         x = self.regressor(x)
-
+        print(f"regressor {x.shape}")
         return x
 
     def _collect_values_from_inputs_if_exists(self, inputs, keys_mapping):
@@ -216,28 +199,3 @@ class PrositIntensityPredictorTorch(nn.Module):
                     single_input = torch.unsqueeze(single_input, axis=-1)
                 collected_values.append(single_input)
         return collected_values
-    
-
-class TimeDistributed(nn.Module):
-    def __init__(self, module, batch_first = False):
-        super(TimeDistributed, self).__init__()
-        self.module = module
-        self.batch_first = batch_first
-
-    def forward(self, x):
-
-        if len(x.size()) <= 2:
-            return self.module(x)
-
-        # Squash samples and timesteps into a single axis
-        x_reshape = x.contiguous().view(-1, x.size(-1))  # (samples * timesteps, input_size)
-
-        y = self.module(x_reshape)
-
-        # We have to reshape Y
-        if self.batch_first:
-            y = y.contiguous().view(x.size(0), -1, y.size(-1))  # (samples, timesteps, output_size)
-        else:
-            y = y.view(-1, x.size(1), y.size(-1))  # (timesteps, samples, output_size)
-
-        return y
