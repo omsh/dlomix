@@ -50,9 +50,3 @@ def test_tf_torch_equivalence_chargestate_model_shapes():
     output_torch = model_torch(dummy_input_torch)
 
     assert output_tf.shape == output_torch.detach().numpy().shape
-
-
-
-
-
-# test in run script: simple data --> fit & compare outputs

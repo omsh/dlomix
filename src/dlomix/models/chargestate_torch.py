@@ -5,6 +5,7 @@ import torch.nn as nn
 
 from ..constants import ALPHABET_UNMOD
 from ..layers.attention_torch import AttentionLayerTorch
+from ..layers.bi_gru_seq_encoder_torch import BiGRUSequentialEncoder
 
 """
 This module contains a model coming in three flavours of predicting precursor charge states for peptide sequences in mass spectrometry data.
@@ -72,11 +73,11 @@ class ChargeStatePredictorTorch(nn.Module):
         self.recurrent_layers_sizes = recurrent_layers_sizes
 
         if model_flavour == "relative":
-            self.final_activation = nn.Softmax  # Florian also used "linear"
+            self.final_activation = nn.Softmax()  # Florian also used "linear"
         elif model_flavour == "observed":
-            self.final_activation = nn.Sigmoid
+            self.final_activation = nn.Sigmoid()
         elif model_flavour == "dominant":
-            self.final_activation = nn.Softmax
+            self.final_activation = nn.Softmax()
         else:
             warnings.warn(f"{model_flavour} not available")
             exit
@@ -87,37 +88,10 @@ class ChargeStatePredictorTorch(nn.Module):
             padding_idx=0,  # TODO check this
         )
 
-        # build encoder
-        self.encoder = nn.Sequential(
-            OrderedDict(
-                [
-                    (
-                        "bidirectional_GRU",
-                        nn.GRU(  # TODO check the parameter values
-                            input_size=embedding_output_dim,
-                            hidden_size=self.recurrent_layers_sizes[0],
-                            batch_first=True,
-                            bidirectional=True,
-                        ),
-                    ),
-                    ("gru_output_selector1", lambda x : x[0]),
-                    ("encoder_dropout1", nn.Dropout(self.dropout_rate)),
-                    (
-                        "unidirectional_GRU",
-                        nn.GRU(  # TODO check the parameter values
-                            input_size=recurrent_layers_sizes[0] * 2,
-                            hidden_size=self.recurrent_layers_sizes[1],
-                            batch_first=True,
-                            bidirectional=False,
-                        ),
-                    ),
-                    ("gru_output_selector2", lambda x : x[0]),
-                    ("encoder_dropout2", nn.Dropout(self.dropout_rate)),
-                ]
-            )
+        self.encoder = BiGRUSequentialEncoder(
+            embedding_output_dim, self.recurrent_layers_sizes, self.dropout_rate
         )
 
-        # instead of building a pytorch equivalent for the self-made tf AttentionLayer, use the build-in pytorch MultiheadAttention
         self.attention = AttentionLayerTorch(
             feature_dim=self.recurrent_layers_sizes[1], 
             seq_len=self.seq_length
@@ -159,17 +133,10 @@ class ChargeStatePredictorTorch(nn.Module):
         tensor
             Predicted output (shape: [batch_size, num_classes]).
         """
-        print(inputs.shape)
         x = self.embedding(inputs)
-        print(x.shape)
         x = self.encoder(x)
-        print(x.shape)
         x = self.attention(x)
-        print(x.shape)
         x = self.regressor(x)
-        print(x.shape)
         x = self.output_layer(x)
-        print(x.shape)
         x = self.activation(x)
-        print(x.shape)
         return x
