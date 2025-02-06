@@ -1,6 +1,6 @@
 """Collaborative Filtering model for imputation.
 
-with Ligthening.
+with Ligthening: `pip install lightning`
 """
 
 # %%
@@ -119,7 +119,6 @@ class CollaborativeFilteringModel(pl.LightningModule):
         lookup: dict[str, dict[str, int]],
         learning_rate: float = 0.001,
         embedding_dim: int = 32,
-        device: str = "cpu",
     ):
         super(CollaborativeFilteringModel, self).__init__()
         self.sample_embedding = nn.Embedding(num_samples, embedding_dim, device=device)
@@ -134,10 +133,12 @@ class CollaborativeFilteringModel(pl.LightningModule):
     def forward(self, sample_ids, feature_ids):
         # lookup integers
         sample_ids = torch.tensor(
-            [self.lookup["sample"][sample] for sample in sample_ids]
+            [self.lookup["sample"][sample] for sample in sample_ids],
+            device=self.device,
         )
         feature_ids = torch.tensor(
-            [self.lookup["feature"][feat] for feat in feature_ids]
+            [self.lookup["feature"][feat] for feat in feature_ids],
+            device=self.device,
         )
         sample_embeds = self.sample_embedding(sample_ids)
         feature_embeds = self.feature_embedding(feature_ids)
@@ -175,21 +176,17 @@ class CollaborativeFilteringModel(pl.LightningModule):
 
 
 model = CollaborativeFilteringModel(
-    num_samples=n_samples,
-    num_features=n_features,
-    lookup=lookup,
+    num_samples=n_samples, num_features=n_features, lookup=lookup
 )
 model
 
 # %%
-trainer = pl.Trainer(accelerator="cpu", max_epochs=2)
+trainer = pl.Trainer(accelerator=str(device), max_epochs=10)
 tuner = Tuner(trainer)
-
 
 # %%
 # Create a Tuner
 tuner.lr_find(model, train_dataloaders=dl_train, attr_name="learning_rate")
 
 # %%
-trainer.fit(model, dl_train)
 trainer.fit(model, dl_train)
