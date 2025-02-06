@@ -1,4 +1,3 @@
-import numpy as np
 import tensorflow as tf
 
 from dlomix.constants import PTMS_ALPHABET
@@ -6,7 +5,7 @@ from dlomix.data import ChargeStateDataset
 from dlomix.models import ChargeStatePredictor
 
 model = ChargeStatePredictor(
-    num_classes=6, seq_length=32, alphabet=PTMS_ALPHABET, model_flavour="dominant"
+    num_classes=6, seq_length=32, alphabet=PTMS_ALPHABET, model_flavour="observed"
 )
 print(model)
 
@@ -20,7 +19,7 @@ d = ChargeStateDataset(
     data_format="parquet",  # "hub",
     data_source=TESTING_DATA,  # "Wilhelmlab/prospect-ptms-charge",
     sequence_column="modified_sequence",
-    label_column="most_abundant_charge_state",
+    label_column="observed_charge_states",
     max_seq_len=30,
     batch_size=8,
 )
@@ -33,16 +32,16 @@ test_d = ChargeStateDataset(
     data_format="parquet",  # "hub",
     test_data_source=TESTING_DATA,  # "Wilhelmlab/prospect-ptms-charge",
     sequence_column="modified_sequence",
-    label_column="most_abundant_charge_state",
+    label_column="observed_charge_states",
     max_seq_len=30,
     batch_size=8,
 )
-test_targets = test_d["test"]["most_abundant_charge_state"]
+test_targets = test_d["test"]["observed_charge_states"]
 test_sequences = test_d["test"]["modified_sequence"]
 
 
 # callbacks
-weights_file = "./output/prosit_charge_major_test"
+weights_file = "./output/prosit_charge_observed_test"
 checkpoint = tf.keras.callbacks.ModelCheckpoint(
     weights_file, save_best_only=True, save_weights_only=True
 )
@@ -66,11 +65,9 @@ history = model.fit(
 )
 
 predictions = model.predict(test_sequences)
-# this returns the index (== the charge state -1) of the predicted most abundant charge state
-predicted_class = np.argmax(predictions, axis=1)  # .ravel()
+predictions = predictions  # .ravel()
 
 print(test_sequences[:5])
 print(test_targets[:5])
 print(predictions[:5])
-print(predicted_class[:5])
-print(predicted_class.shape, predictions.shape, len(test_targets))
+print(predictions.shape, len(test_targets))
