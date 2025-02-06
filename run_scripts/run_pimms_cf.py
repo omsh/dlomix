@@ -7,11 +7,13 @@ with Ligthening: `pip install lightning`
 import pathlib
 
 import lightning as pl
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 from datasets import load_dataset
 from lightning.pytorch.tuner import Tuner
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,11 +36,12 @@ if not DATASOURCE.exists():
         .stack()
         .squeeze()
         .to_frame("intensity")
+        .map(np.log2)
     )
     data.to_csv("protein_groups_wide_N50_M454.csv")  # local dump
 
 # %% [markdown]
-# Load data from disk
+# map default columns to dataset columns
 
 # %%
 col_map = {"sample": "Sample ID", "feature": "protein_group", "intensity": "intensity"}
@@ -78,7 +81,8 @@ for item in ds_dict["train"]:
 item
 
 # %%
-dl_train = DataLoader(ds_dict["train"], batch_size=256)
+dl_train = DataLoader(ds_dict["train"], batch_size=4096)
+dl_test = DataLoader(ds_dict["test"], batch_size=1024)
 for batch in dl_train:
     break
 batch
@@ -151,9 +155,9 @@ class CollaborativeFilteringModel(pl.LightningModule):
 
     def validation_step(self, batch):
         sample_ids, feature_ids, intensities = (
-            batch["sample"],
-            batch["feature"],
-            batch["intensity"],
+            batch[self.col_map["sample"]],
+            batch[self.col_map["feature"]],
+            batch[self.col_map["intensity"]],
         )
         predictions = self(sample_ids, feature_ids)
         loss = self.loss(predictions, intensities.float())
@@ -164,16 +168,18 @@ class CollaborativeFilteringModel(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
 
+# %%
 model = CollaborativeFilteringModel(
     num_samples=n_samples,
     num_features=n_features,
     lookup=lookup,
     col_map=col_map,
+    embedding_dim=10,
 )
 model
 
 # %%
-trainer = pl.Trainer(accelerator=str(device), max_epochs=10)
+trainer = pl.Trainer(accelerator=str(device), max_epochs=50)
 tuner = Tuner(trainer)
 
 # %%
@@ -182,5 +188,56 @@ tuner.lr_find(model, train_dataloaders=dl_train, attr_name="learning_rate")
 
 # %%
 trainer.fit(model, dl_train)
+train_loss = trainer.callback_metrics.get("train_loss")
+# val_loss = trainer.callback_metrics.get("val_loss")
+
+print(f"Training Loss: {train_loss}")
+# print(f"Validation Loss: {val_loss}")
+
+
+# %%
+# Evaluate the model
+model.eval()
+all_preds = []
+all_targets = []
+
+with torch.no_grad():
+    for batch in dl_train:
+        sample_ids, feature_ids, intensities = (
+            batch[col_map["sample"]],
+            batch[col_map["feature"]],
+            batch[col_map["intensity"]],
+        )
+        preds = model(sample_ids, feature_ids)
+        all_preds.extend(preds.cpu().numpy())
+        all_targets.extend(intensities.cpu().numpy())
+
+# Calculate RMSE
+rmse = np.sqrt(mean_squared_error(all_targets, all_preds))
+print(f"RMSE (train): {rmse}")
+mae = mean_absolute_error(all_targets, all_preds)
+print(f"MAE (train): {mae}")
+
+# %%
+model.eval()
+all_preds = []
+all_targets = []
+
+with torch.no_grad():
+    for batch in dl_test:
+        sample_ids, feature_ids, intensities = (
+            batch[col_map["sample"]],
+            batch[col_map["feature"]],
+            batch[col_map["intensity"]],
+        )
+        preds = model(sample_ids, feature_ids)
+        all_preds.extend(preds.cpu().numpy())
+        all_targets.extend(intensities.cpu().numpy())
+
+# Calculate RMSE
+rmse = np.sqrt(mean_squared_error(all_targets, all_preds))
+print(f"RMSE (test): {rmse}")
+mae = mean_absolute_error(all_targets, all_preds)
+print(f"MAE (test): {mae}")
 
 # %%
