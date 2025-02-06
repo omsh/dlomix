@@ -128,6 +128,7 @@ def basic_model_existence_test(model):
     logger.info(model)
     assert model is not None
 
+    # Explicitly build the model with a dummy input shape (batch_size, seq_length)
     model.build((None, 30))
     assert len(model.trainable_variables) > 0
 
