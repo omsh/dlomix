@@ -7,7 +7,7 @@ class DetectabilityModel(tf.keras.Model):
     def __init__(
         self,
         num_units,
-        num_clases=len(CLASSES_LABELS),
+        num_classes=len(CLASSES_LABELS),
         name="autoencoder",
         padding_char=padding_char,
         **kwargs
@@ -15,20 +15,24 @@ class DetectabilityModel(tf.keras.Model):
         super(DetectabilityModel, self).__init__(name=name, **kwargs)
 
         self.num_units = num_units
-        self.num_clases = num_clases
+        self.num_classes = num_classes
         self.padding_char = padding_char
         self.alphabet_size = len(padding_char)
         self.one_hot_encoder = tf.keras.layers.Lambda(
             lambda x: tf.one_hot(tf.cast(x, "int32"), depth=self.alphabet_size)
         )
         self.encoder = Encoder(self.num_units)
-        self.decoder = Decoder(self.num_units, self.num_clases)
+        self.decoder = Decoder(self.num_units, self.num_classes)
 
     def call(self, inputs):
+        print("inputs shape: ", inputs.shape)
         onehot_inputs = self.one_hot_encoder(inputs)
+        print("onehot shape: ", onehot_inputs.shape)
         enc_outputs, enc_state_f, enc_state_b = self.encoder(onehot_inputs)
+        print("enc outputs: ", enc_outputs.shape, enc_state_f.shape, enc_state_b.shape)
 
         dec_outputs = tf.concat([enc_state_f, enc_state_b], axis=-1)
+        print("concat shape: ", dec_outputs.shape)
 
         decoder_inputs = {
             "decoder_outputs": dec_outputs,
@@ -38,6 +42,7 @@ class DetectabilityModel(tf.keras.Model):
         }
 
         decoder_output = self.decoder(decoder_inputs)
+        print("decoder output shape: ", decoder_output.shape)
 
         return decoder_output
 
@@ -60,12 +65,21 @@ class Encoder(tf.keras.layers.Layer):
         self.encoder_bi = tf.keras.layers.Bidirectional(self.encoder_gru)
 
     def call(self, inputs):
+        print("In Encoder: ", inputs.shape)
         mask_ = self.mask_enco.compute_mask(inputs)
+        print("Mask Encoder: ", mask_.shape)
 
         mask_bi = self.encoder_bi.compute_mask(inputs, mask_)
+        print("Bi Mask Encoder: ", len(mask_bi))
 
         encoder_outputs, encoder_state_f, encoder_state_b = self.encoder_bi(
             inputs, initial_state=None, mask=mask_bi
+        )
+        print(
+            "Encoder outputs: ",
+            encoder_outputs.shape,
+            encoder_state_f.shape,
+            encoder_state_b.shape,
         )
 
         return encoder_outputs, encoder_state_f, encoder_state_b
