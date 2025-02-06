@@ -1,5 +1,4 @@
 import tensorflow as tf
-
 from dlomix.constants import PTMS_ALPHABET
 from dlomix.data import ChargeStateDataset
 from dlomix.eval import adjusted_mean_absolute_error

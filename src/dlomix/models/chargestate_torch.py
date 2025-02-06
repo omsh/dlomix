@@ -4,7 +4,7 @@ from collections import OrderedDict
 import torch.nn as nn
 
 from ..constants import ALPHABET_UNMOD
-from ..layers.attention import AttentionLayer
+from ..layers.attention_torch import AttentionLayerTorch
 
 """
 This module contains a model coming in three flavours of predicting precursor charge states for peptide sequences in mass spectrometry data.
@@ -100,6 +100,7 @@ class ChargeStatePredictorTorch(nn.Module):
                             bidirectional=True,
                         ),
                     ),
+                    ("gru_output_selector1", lambda x : x[0]),
                     ("encoder_dropout1", nn.Dropout(self.dropout_rate)),
                     (
                         "unidirectional_GRU",
@@ -110,16 +111,16 @@ class ChargeStatePredictorTorch(nn.Module):
                             bidirectional=False,
                         ),
                     ),
+                    ("gru_output_selector2", lambda x : x[0]),
                     ("encoder_dropout2", nn.Dropout(self.dropout_rate)),
                 ]
             )
         )
 
         # instead of building a pytorch equivalent for the self-made tf AttentionLayer, use the build-in pytorch MultiheadAttention
-        self.attention = nn.MultiheadAttention(  # TODO check the parameter values
-            embed_dim=self.recurrent_layers_sizes[1],
-            num_heads=1,  # TODO think about increasing this
-            batch_first=True,
+        self.attention = AttentionLayerTorch(
+            feature_dim=self.recurrent_layers_sizes[1], 
+            seq_len=self.seq_length
         )
 
         self.regressor = nn.Sequential(
@@ -158,10 +159,17 @@ class ChargeStatePredictorTorch(nn.Module):
         tensor
             Predicted output (shape: [batch_size, num_classes]).
         """
+        print(inputs.shape)
         x = self.embedding(inputs)
-        x, _ = self.encoder(x)
+        print(x.shape)
+        x = self.encoder(x)
+        print(x.shape)
         x = self.attention(x)
+        print(x.shape)
         x = self.regressor(x)
+        print(x.shape)
         x = self.output_layer(x)
+        print(x.shape)
         x = self.activation(x)
+        print(x.shape)
         return x
