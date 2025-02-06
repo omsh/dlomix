@@ -37,10 +37,6 @@ def main():
                         help="Learning rate scheduler patience (in epochs)")
     parser.add_argument("--min_lr", type=float, default=1e-7,
                         help="Minimum learning rate")
-    parser.add_argument("--train_split", type=float, default=0.8,
-                        help="Fraction of data for training")
-    parser.add_argument("--val_split", type=float, default=0.1,
-                        help="Fraction of data for validation")
     parser.add_argument("--device", type=str, default=None,
                         help="Device to use: 'cuda', 'mps', or 'cpu'. Auto-detect if not specified.")
     parser.add_argument("--print_freq", type=int, default=25,
