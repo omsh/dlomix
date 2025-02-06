@@ -3,21 +3,22 @@ import sys
 
 import torch.optim as optim
 from dlomix.data import FragmentIonIntensityDataset
-from dlomix.losses import masked_spectral_distance
+from dlomix.losses.intensity_torch import masked_spectral_distance_torch
 from dlomix.models import PrositIntensityPredictorTorch
+from tqdm import tqdm
 
 # consider the use-case for starting from a saved model
 
 model = PrositIntensityPredictorTorch(
     seq_length=30,
-    # use_prosit_ptm_features=True,
+    use_prosit_ptm_features=False,
     input_keys={
         "SEQUENCE_KEY": "modified_sequence",
     },
-    meta_data_keys={
-        "COLLISION_ENERGY_KEY": "collision_energy_aligned_normed",
-        "PRECURSOR_CHARGE_KEY": "precursor_charge_onehot",
-    },
+    # meta_data_keys={
+    #     "COLLISION_ENERGY_KEY": "collision_energy_aligned_normed",
+    #     "PRECURSOR_CHARGE_KEY": "precursor_charge_onehot",
+    # },
     with_termini=False,
 )
 
@@ -30,10 +31,10 @@ d = FragmentIonIntensityDataset(
     max_seq_len=30,
     batch_size=8,
     val_ratio=0.2,
-    model_features=["collision_energy_aligned_normed", "precursor_charge_onehot"],
+    # model_features=["collision_energy_aligned_normed", "precursor_charge_onehot"],
     sequence_column="modified_sequence",
     label_column="intensities_raw",
-    features_to_extract=["mod_loss", "delta_mass"],
+    # features_to_extract=["mod_loss", "delta_mass"],
     dataset_type="pt"
 )
 
@@ -52,19 +53,21 @@ d = FragmentIonIntensityDataset(
 # make training loop 
 
 model.train()
-loss = masked_spectral_distance
+loss_criterion = masked_spectral_distance_torch
 
-for epoch in range(0, 19):
+for epoch in tqdm(range(0, 19)):
     epoch_loss = 0
     for batch in d.tensor_train_data:
         optimizer.zero_grad()
 
         output = model(batch)
-        loss = loss(output, batch["intensities_raw"])
+        loss = loss_criterion(output, batch["intensities_raw"])
+        print(loss.item())
+        epoch_loss += loss.item()    
 
-        loss.backward() 
-        epoch_loss += loss            
+        loss.backward()         
         optimizer.step()
+    print(epoch_loss)
     
 
 # # to add test data, a pool for example

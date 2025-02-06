@@ -95,7 +95,6 @@ class PrositIntensityPredictorTorch(nn.Module):
                 ("meta_dense", nn.LazyLinear(out_features=self.recurrent_layers_sizes[1])),
                 ("dropout", nn.Dropout(p=self.dropout_rate))
             ]))
-            print("caution: input dimension hard-coded")
 
         # # # ptm encoder -> optional, only if ptm flag is provided -- not yet properly adapted
         self.ptm_input_encoder, self.ptm_aa_fusion = None, None
@@ -132,15 +131,21 @@ class PrositIntensityPredictorTorch(nn.Module):
                 inputs, self.meta_data_keys
             )
 
+            #print(len(meta_data))
+            #print(self.meta_encoder)
+
             if self.meta_encoder and len(meta_data) > 0:
                 if isinstance(meta_data, list):
                     meta_data = torch.cat(meta_data, dim=-1)
                 encoded_meta = self.meta_encoder(meta_data)
-                
-            else:
+
+            elif self.meta_data_keys:
                 raise ValueError(
                     f"Following metadata keys were specified when creating the model: {self.meta_data_keys}, but the corresponding values do not exist in the input. The actual input passed to the model contains the following keys: {list(inputs.keys())}"
                 )
+            else:
+                pass
+                
             
             
             
@@ -156,18 +161,18 @@ class PrositIntensityPredictorTorch(nn.Module):
             #         f"PTM features enabled and following PTM features are expected in the model for Prosit Intesity: {PrositIntensityPredictorTorch.PTM_INPUT_KEYS}. The actual input passed to the model contains the following keys: {list(inputs.keys())}. Falling back to no PTM features."
             #     )
 
-        print(peptides_in.shape)
+        #print(peptides_in.shape)
         x = self.embedding(peptides_in)
-        print(x.shape)
+        #print(x.shape)
 
         # fusion of PTMs (before going into the GRU sequence encoder)
         if self.ptm_aa_fusion and encoded_ptm is not None:
             x = self.ptm_aa_fusion([x, encoded_ptm])
 
         x = self.sequence_encoder(x)
-        print(f"encoder {x.shape}")
+        #print(f"encoder {x.shape}")
         x = self.attention(x)
-        print(f"attention {x.shape}")
+        #print(f"attention {x.shape}")
 
         if self.meta_data_fusion_layer and encoded_meta is not None:
             x = self.meta_data_fusion_layer([x, encoded_meta])
@@ -176,9 +181,9 @@ class PrositIntensityPredictorTorch(nn.Module):
             x = torch.unsqueeze(x, axis=1)
 
         x = self.decoder(x)
-        print(f"decoder: {x.shape}")
+        #print(f"decoder: {x.shape}")
         x = self.regressor(x)
-        print(f"regressor {x.shape}")
+        #print(f"regressor {x.shape}")
         return x
 
     def _collect_values_from_inputs_if_exists(self, inputs, keys_mapping):

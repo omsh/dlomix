@@ -31,10 +31,8 @@ class GRUSequentialDecoder(nn.Module):
         self.attention = DecoderAttentionLayerTorch(max_ion)
 
     def forward(self, inputs):
-        print(f" first pass {inputs.shape}")
         x, _ = self.unidirectional_GRU(inputs)
         x = self.encoder_dropout(x)
-        print(f"Before attention: {x.shape}")
         x = self.attention(x)
         return x
     
